@@ -14,6 +14,13 @@
 // publishing to the MCP registry, creating a GitHub release, signing a
 // provenance attestation.
 //
+// Placement alone was not enough either. The first version of this file looked
+// for the guard script's filename in the step's text and compared step indices,
+// and a step can keep the filename while enforcing nothing: `if: false`,
+// `continue-on-error: true`, `run: echo node .github/scripts/...`, `|| true`.
+// All four passed. So each gate now has to run its actual command, with nothing
+// that can skip it and nothing that can discard its exit status.
+//
 // The rule is applied to every workflow file, not to a list of known ones, so
 // a new workflow that publishes is covered the day it is added.
 //
@@ -24,7 +31,13 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseWorkflow, stepMatches } from './helpers/workflow-steps.mjs'
+import {
+  commandsIn,
+  parseWorkflow,
+  runCommandOf,
+  stepFields,
+  stepMatches,
+} from './helpers/workflow-steps.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const WORKFLOW_DIR = join(ROOT, '.github', 'workflows')
@@ -37,6 +50,107 @@ const REGISTRY_WORKFLOW = 'mcp-registry-publish.yml'
 
 const GUARD = /release-actor-state\.mjs(?![\w.-])/
 const REGISTRY_PRECONDITION = /registry-release-state\.mjs(?![\w.-])/
+
+// --- the gates, and what makes one enforced ---------------------------------
+//
+// Finding the script's filename in a step proves the filename is there. It does
+// not prove the step runs the script, or that the job stops when the script
+// refuses. Four ways to keep the filename and lose the gate, all of which the
+// first version of this suite accepted: `if: false` skips the step,
+// `continue-on-error: true` lets the job continue past it, replacing the command
+// with `echo` runs nothing, and `|| true` discards the exit status. So each gate
+// carries the command it must actually run, and that command is required
+// exactly.
+//
+// `if:` is rejected outright rather than analysed. A condition that only repeats
+// the job's own trigger would be harmless, but telling that apart from one that
+// can be false at release time means evaluating GitHub expressions, which is a
+// much larger thing than this reader is. None of these steps has an `if:`, so
+// requiring none costs nothing and leaves no expression to interpret.
+const GATES = [
+  {
+    id: 'release actor guard',
+    pattern: GUARD,
+    command: 'node .github/scripts/release-actor-state.mjs',
+  },
+  {
+    id: 'registry descriptor precondition',
+    pattern: REGISTRY_PRECONDITION,
+    command: 'node .github/scripts/registry-release-state.mjs',
+  },
+]
+
+// Shapes that turn a failing command into a passing step. Not a shell parser:
+// a fixed list of the ways a one-line gate invocation gets its exit status
+// thrown away.
+const FAILURE_SWALLOWED = [
+  { id: 'an || fallback', pattern: /\|\|/ },
+  { id: 'set +e', pattern: /(?:^|[\s;&|])set\s+\+[A-Za-z]*e/m },
+  { id: 'a trailing true', pattern: /(?:^|[;&\n])\s*(?:true|:)\s*$/m },
+  { id: 'exit 0', pattern: /(?:^|[;&|\n])\s*exit\s+0\b/ },
+]
+
+export function gateStepViolations(where, job, gate, step) {
+  const violations = []
+  const label = `${where} runs the ${gate.id} at step ${step.index + 1} (line ${step.startLine}) but it`
+  const fields = stepFields(step.text)
+
+  if (fields.has('if')) {
+    violations.push(`${label} carries an if: condition, so the gate can be skipped`)
+  }
+
+  const stepSkip = fields.get('continue-on-error')
+  if (stepSkip && stepSkip.inline !== 'false') {
+    violations.push(
+      `${label} sets continue-on-error: ${stepSkip.inline}, `
+      + 'so its failure does not stop the job',
+    )
+  }
+  if (job.continueOnError !== null && job.continueOnError !== 'false') {
+    violations.push(
+      `${label} sits in a job with continue-on-error: ${job.continueOnError}, `
+      + 'so its failure does not stop the job',
+    )
+  }
+
+  const run = runCommandOf(step.text)
+  if (run === null) {
+    violations.push(`${label} has no run command, so it cannot invoke ${gate.command}`)
+    return violations
+  }
+
+  const swallowed = FAILURE_SWALLOWED.find((shape) => shape.pattern.test(run))
+  const commands = commandsIn(run)
+  if (swallowed) {
+    violations.push(`${label} discards the gate's exit status with ${swallowed.id}`)
+  } else if (commands.length !== 1 || commands[0] !== gate.command) {
+    violations.push(
+      `${label} does not invoke ${gate.command}, it runs: ${commands.join(' ; ') || '(nothing)'}`,
+    )
+  }
+
+  return violations
+}
+
+// Every gate step in every workflow, wherever it appears. The placement rule
+// below only reaches the gates a publishing job is required to carry; this
+// reaches the ones in jobs that have no protected effect of their own, where a
+// neutralized gate would otherwise go unread.
+export function gateEnforcementViolations(workflows) {
+  const violations = []
+  for (const workflow of workflows) {
+    for (const job of workflow.jobs) {
+      const where = `${workflow.path} job ${job.name}`
+      for (const gate of GATES) {
+        for (const step of job.steps) {
+          if (!stepMatches(step.text, gate.pattern)) continue
+          violations.push(...gateStepViolations(where, job, gate, step))
+        }
+      }
+    }
+  }
+  return violations
+}
 
 // Each pattern is matched against the step's whole text with comment lines
 // removed, not just against `run`. A protected effect moved into a composite
@@ -89,6 +203,12 @@ export function guardPlacementViolations(workflows) {
         )
       }
 
+      // Present and early is not the same as enforced. A guard that is skipped,
+      // that the job continues past, that runs something other than the script,
+      // or whose exit status is discarded leaves the protected steps below it
+      // ungated, so the job counts as unguarded here too.
+      violations.push(...gateStepViolations(where, job, GATES[0], guard))
+
       // The guard reads this run's attempt through the Actions API, so a job
       // that calls it without `actions: read` fails closed at release time
       // rather than at review time. Catch it here instead.
@@ -114,6 +234,8 @@ export function guardPlacementViolations(workflows) {
             `${where} runs the descriptor precondition check at step ${precondition.index + 1}, `
             + `after reaching the MCP registry at step ${registryStep.step.index + 1}`,
           )
+        } else {
+          violations.push(...gateStepViolations(where, job, GATES[1], precondition))
         }
       }
     }
@@ -133,6 +255,10 @@ const parse = (text, path = 'synthetic.yml') => parseWorkflow(text, { path })
 
 test('every publishing job in this repository runs the guard before its first protected effect', () => {
   assert.deepEqual(guardPlacementViolations(readWorkflows()), [])
+})
+
+test('every gate step in this repository runs its command and stops the job when it fails', () => {
+  assert.deepEqual(gateEnforcementViolations(readWorkflows()), [])
 })
 
 test('the release workflow still contains the protected effects this rule exists to cover', () => {
@@ -279,6 +405,119 @@ jobs:
   assert.equal(violations.length, 1)
   assert.match(violations[0], /without the descriptor precondition check/)
 })
+
+// A job whose protected effect is registry publication, so the descriptor
+// precondition is a required gate in it and can be neutralized the same four
+// ways the actor guard can.
+const REGISTRY_JOB = `
+name: Example
+on:
+  workflow_dispatch:
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: Require the authorized release actor
+        run: node .github/scripts/release-actor-state.mjs
+      - name: Require the registry descriptors to match the published npm version
+        run: node .github/scripts/registry-release-state.mjs
+      - name: Authenticate
+        run: ./mcp-publisher login github-oidc
+      - name: Publish
+        run: ./mcp-publisher publish .mcp/server.json
+`
+
+const GATE_TARGETS = [
+  {
+    id: 'the release actor guard',
+    workflow: PUBLISHING_JOB,
+    nameLine: '      - name: Require the authorized release actor',
+    runLine: '        run: node .github/scripts/release-actor-state.mjs',
+  },
+  {
+    id: 'the registry descriptor precondition',
+    workflow: REGISTRY_JOB,
+    nameLine: '      - name: Require the registry descriptors to match the published npm version',
+    runLine: '        run: node .github/scripts/registry-release-state.mjs',
+  },
+]
+
+// The gate is left in place in every one of these. The filename is still there,
+// the step is still first, and the step still refuses when it runs. Each
+// mutation takes away one of those words.
+const NEUTRALIZERS = [
+  {
+    id: 'a condition that can skip it',
+    mutate: (text, gate) => text.replace(`${gate.nameLine}\n`, `${gate.nameLine}\n        if: false\n`),
+    expect: /carries an if: condition/,
+  },
+  {
+    id: 'continue-on-error on the step',
+    mutate: (text, gate) => text.replace(
+      `${gate.nameLine}\n`,
+      `${gate.nameLine}\n        continue-on-error: true\n`,
+    ),
+    expect: /sets continue-on-error: true/,
+  },
+  {
+    id: 'continue-on-error on the job',
+    mutate: (text) => text.replace(
+      '    runs-on: ubuntu-latest\n',
+      '    runs-on: ubuntu-latest\n    continue-on-error: true\n',
+    ),
+    expect: /job with continue-on-error: true/,
+  },
+  {
+    id: 'an echo in place of the command',
+    mutate: (text, gate) => text.replace(gate.runLine, gate.runLine.replace('run: ', 'run: echo ')),
+    expect: /does not invoke/,
+  },
+  {
+    id: '|| true appended to the command',
+    mutate: (text, gate) => text.replace(gate.runLine, `${gate.runLine} || true`),
+    expect: /discards the gate's exit status with an \|\| fallback/,
+  },
+]
+
+for (const gate of GATE_TARGETS) {
+  test(`the rule passes a job whose gate is ${gate.id} as written`, () => {
+    assert.deepEqual(guardPlacementViolations([parse(gate.workflow)]), [])
+    assert.deepEqual(gateEnforcementViolations([parse(gate.workflow)]), [])
+  })
+
+  for (const neutralizer of NEUTRALIZERS) {
+    const title = `the rule fails when ${gate.id} keeps its filename `
+      + `but is neutralized by ${neutralizer.id}`
+    test(title, () => {
+      const mutated = neutralizer.mutate(gate.workflow, gate)
+      assert.notEqual(mutated, gate.workflow, 'mutation did not apply')
+
+      // The filename is the only thing the previous version of this rule
+      // looked for, so the mutation has to leave it in place to be the case
+      // worth testing.
+      const workflow = parse(mutated)
+      const pattern = gate.workflow === PUBLISHING_JOB ? GUARD : REGISTRY_PRECONDITION
+      assert.ok(
+        workflow.jobs[0].steps.some((step) => stepMatches(step.text, pattern)),
+        'mutation removed the gate instead of neutralizing it',
+      )
+
+      for (const [rule, violations] of [
+        ['placement', guardPlacementViolations([workflow])],
+        ['enforcement', gateEnforcementViolations([workflow])],
+      ]) {
+        assert.ok(
+          violations.some((violation) => neutralizer.expect.test(violation)),
+          `the ${rule} rule did not catch ${neutralizer.id}: ${JSON.stringify(violations)}`,
+        )
+      }
+    })
+  }
+}
 
 test('a job with no protected effect is not required to carry the guard', () => {
   const benign = `
