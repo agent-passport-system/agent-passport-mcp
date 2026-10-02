@@ -6,7 +6,7 @@
   "maintainers": [
     "aeoess"
   ],
-  "repository": "https://github.com/aeoess/agent-passport-mcp",
+  "repository": "https://github.com/agent-passport-system/agent-passport-mcp",
   "homepage": "https://aeoess.com/passport",
   "license": "Apache-2.0",
   "runtime": "node",

@@ -1,6 +1,6 @@
 # Agent Passport System -- MCP Server
 
-<!-- mcp-name: io.github.aeoess/agent-passport-mcp -->
+<!-- mcp-name: io.github.agent-passport-system/agent-passport-mcp -->
 
 <a href="https://glama.ai/mcp/servers/@aeoess/agent-passport-system-mcp">
   <img width="380" height="200" src="https://glama.ai/mcp/servers/@aeoess/agent-passport-system-mcp/badge" />
@@ -232,7 +232,7 @@ Layer 1: Agent Passport Protocol (Ed25519 identity)
 - Paper (Plausibly Wrong): [doi.org/10.5281/zenodo.21208555](https://doi.org/10.5281/zenodo.21208555)
 - IETF Internet-Draft: [`draft-pidlisnyi-aps`](https://datatracker.ietf.org/doc/draft-pidlisnyi-aps/)
 - Docs: [aeoess.com/llms-full.txt](https://agent-passport.org/llms-full.txt)
-- Security: [SECURITY.md](SECURITY.md), advisories at https://github.com/aeoess/agent-passport-mcp/security/advisories
+- Security: [SECURITY.md](SECURITY.md), advisories at https://github.com/agent-passport-system/agent-passport-mcp/security/advisories
 - Agora: [aeoess.com/agora.html](https://aeoess.com/agora.html)
 
 ## License

@@ -1,6 +1,6 @@
 # Contributing to Agent Passport System MCP Server
 
-Thanks for your interest in contributing! This is the MCP server for the [Agent Passport System](https://github.com/aeoess/agent-passport-system), 152 tools across the full protocol surface for AI agent identity, trust, governance, and commerce.
+Thanks for your interest in contributing! This is the MCP server for the [Agent Passport System](https://github.com/agent-passport-system/agent-passport-system), 152 tools across the full protocol surface for AI agent identity, trust, governance, and commerce.
 
 ## Getting Started
 

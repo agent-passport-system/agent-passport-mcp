@@ -1,31 +1,111 @@
-name: Publish to MCP Registry
+name: Publish to MCP Registry (manual recovery)
+
+# Manual recovery only. Routine registry publication happens in release.yml,
+# as a step after npm publish succeeds, inside the single privileged job that
+# already runs the release actor guard.
+#
+# This file used to be a second, unguarded path to the same effect. It ran on
+# `release: [published]` and on an unrestricted `workflow_dispatch`, with no
+# actor check, no ref bound, and an `mcp-publisher` binary pulled from
+# `latest`, while holding `id-token: write`. Under a personal account that was
+# one person's write access. Under an organization it is every writer's.
+#
+# The release trigger is gone for a second reason: a release created by
+# release.yml with GITHUB_TOKEN does not start another workflow, so
+# `release: [published]` never fired for the releases this repository actually
+# makes. Keeping it would have documented a path that does not run.
+#
+# What is left is the case where npm publish succeeded and registry
+# publication did not. It runs the same guard first, refuses any ref that is
+# not a reviewed v*.*.* release tag, and refuses to publish descriptors that
+# the published npm version cannot back.
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # OIDC: the registry authorizes the io.github.<owner> prefix from this
+      # claim. It is the credential this workflow exists to spend, so it is
+      # declared on this job only and never at the workflow top level.
       id-token: write
-
+      actions: read # read this run's attempt to establish who requested it
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Install mcp-publisher
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version: '22'
+
+      # First, before anything is downloaded, authenticated or published. The
+      # same guard release.yml runs, for the same reason: repository ownership
+      # is not the release credential. It checks the immutable actor id of
+      # whoever dispatched this run and, through the run attempt API, of
+      # whoever asked for this attempt, so a rerun cannot reuse an earlier
+      # attempt's authorization. It fails closed on anything it cannot
+      # establish.
+      - name: Require the authorized release actor
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node .github/scripts/release-actor-state.mjs
+
+      # A dispatch can name any ref. Without this, the recovery path would
+      # publish whatever descriptors happen to sit on a branch, which is a
+      # different artifact from the one the release reviewed and shipped.
+      - name: Require a reviewed release tag as the dispatch ref
         run: |
-          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
-          chmod +x mcp-publisher
-          sudo mv mcp-publisher /usr/local/bin/
+          set -euo pipefail
+          if [ "$GITHUB_REF_TYPE" != "tag" ]; then
+            echo "::error::dispatch this workflow from a v*.*.* release tag, not from ${GITHUB_REF_TYPE} ${GITHUB_REF_NAME}"
+            exit 1
+          fi
+          case "$GITHUB_REF_NAME" in
+            v*.*.*) ;;
+            *)
+              echo "::error::ref ${GITHUB_REF_NAME} is not a v*.*.* release tag"
+              exit 1
+              ;;
+          esac
+          pkg_version=$(node -p "require('./package.json').version")
+          if [ "$GITHUB_REF_NAME" != "v$pkg_version" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match package.json version ${pkg_version}"
+            exit 1
+          fi
 
-      - name: Authenticate to MCP Registry
-        run: mcp-publisher login github-oidc
+      - name: Require the registry descriptors to match the published npm version
+        run: node .github/scripts/registry-release-state.mjs
+
+      # Pinned by tag and by digest rather than taken from `latest`. This
+      # binary is handed the organization's registry identity a step later, so
+      # what gets downloaded is part of the trusted set.
+      - name: Install mcp-publisher
+        env:
+          MCP_PUBLISHER_VERSION: v1.8.1
+          MCP_PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
+        run: |
+          set -euo pipefail
+          if [ "$(uname -s)" != "Linux" ] || [ "$(uname -m)" != "x86_64" ]; then
+            echo "::error::the pinned mcp-publisher digest is for linux/amd64, runner is $(uname -s)/$(uname -m)"
+            exit 1
+          fi
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            -o mcp-publisher.tar.gz \
+            "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz"
+          echo "${MCP_PUBLISHER_SHA256}  mcp-publisher.tar.gz" | sha256sum --check --strict -
+          tar -xzf mcp-publisher.tar.gz mcp-publisher
+          chmod 755 mcp-publisher
+          rm -f mcp-publisher.tar.gz
+
+      - name: Authenticate to the MCP Registry
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./mcp-publisher login github-oidc
 
-      - name: Publish to MCP Registry
-        run: mcp-publisher publish .mcp/server.json
+      - name: Publish to the MCP Registry
+        run: ./mcp-publisher publish .mcp/server.json

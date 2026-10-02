@@ -2,12 +2,23 @@ name: Release
 
 # Triggered by pushing a version tag (e.g. v5.0.1). Runs the full test
 # gate, publishes to npm via Trusted Publishing (OIDC, no NPM_TOKEN),
-# then creates a GitHub Release with the published tarball, a signed
-# SLSA build-provenance attestation, and an SBOM attached as assets.
+# creates a GitHub Release with the published tarball, a signed SLSA
+# build-provenance attestation, and an SBOM attached as assets, and then
+# publishes the server descriptor to the MCP registry.
+#
+# Registry publication lives here, not in a workflow of its own, because this
+# is the job that already establishes the release principal. The old
+# mcp-registry-publish.yml ran on `release: [published]` with an unrestricted
+# workflow_dispatch and no actor check at all, so it was a second path to the
+# organization's OIDC identity that nothing gated. That trigger was also dead:
+# a release created with GITHUB_TOKEN does not start another workflow, so the
+# event never fired for a release this workflow created. What remains of that
+# file is a manual recovery path behind the same guard.
 #
 # Adapted from the SDK's .github/workflows/release.yml in
-# aeoess/agent-passport-system, which is the reference implementation for
-# this pipeline. Every action sha below is copied from that file.
+# agent-passport-system/agent-passport-system, which is the reference
+# implementation for this pipeline. Every action sha below is copied from that
+# file.
 on:
   push:
     tags:
@@ -25,6 +36,7 @@ jobs:
       contents: write # create the GitHub Release and upload assets
       id-token: write # OIDC: npm Trusted Publishing + Sigstore signing for attestation
       attestations: write # persist the build-provenance attestation
+      actions: read # read this run's attempt to establish who requested it
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -33,6 +45,18 @@ jobs:
           # npm Trusted Publishing requires Node 22.14.0+ (npm CLI 11.5.1+).
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
+
+      # First, before anything is installed, built, attested or published. This
+      # repository has one privileged job, so this one placement is what gates
+      # every protected step below it. Repository ownership is not the release
+      # credential: the guard checks the immutable actor id of whoever pushed
+      # the tag and, through the run attempt API, of whoever asked for this
+      # attempt, so a rerun cannot reuse an earlier attempt's authorization.
+      # It fails closed on anything it cannot establish.
+      - name: Require the authorized release actor
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node .github/scripts/release-actor-state.mjs
 
       - name: Verify tag matches package.json version
         run: |
@@ -115,3 +139,40 @@ jobs:
             "${{ steps.sbom.outputs.path }}" \
             --title "$GITHUB_REF_NAME" \
             --generate-notes
+
+      # Everything below is the MCP registry publication, and it runs only
+      # after npm publish has succeeded. The order is not cosmetic: the
+      # registry validates ownership of an `io.github.<owner>` name by reading
+      # the published npm package's `mcpName`, so there is nothing to validate
+      # against until the version exists on npm.
+      - name: Require the registry descriptors to match the published npm version
+        run: node .github/scripts/registry-release-state.mjs
+
+      # Pinned by tag and by digest rather than taken from `latest`. This
+      # binary is handed the organization's registry identity a step later, so
+      # what gets downloaded is part of the release's trusted set.
+      - name: Install mcp-publisher
+        env:
+          MCP_PUBLISHER_VERSION: v1.8.1
+          MCP_PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
+        run: |
+          set -euo pipefail
+          if [ "$(uname -s)" != "Linux" ] || [ "$(uname -m)" != "x86_64" ]; then
+            echo "::error::the pinned mcp-publisher digest is for linux/amd64, runner is $(uname -s)/$(uname -m)"
+            exit 1
+          fi
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            -o mcp-publisher.tar.gz \
+            "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz"
+          echo "${MCP_PUBLISHER_SHA256}  mcp-publisher.tar.gz" | sha256sum --check --strict -
+          tar -xzf mcp-publisher.tar.gz mcp-publisher
+          chmod 755 mcp-publisher
+          rm -f mcp-publisher.tar.gz
+
+      - name: Authenticate to the MCP Registry
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish to the MCP Registry
+        run: ./mcp-publisher publish .mcp/server.json
