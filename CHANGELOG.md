@@ -1,5 +1,13 @@
 # Changelog
 
+## 6.1.1 (2026-10-02)
+
+First release from the agent-passport-system organization. No server code changes from 6.1.0.
+
+- Package metadata points at the repository's new home, `agent-passport-system/agent-passport-mcp`, and the MCP registry name is `io.github.agent-passport-system/agent-passport-mcp`.
+- The release workflow publishes from the organization repository through npm trusted publishing with release guards, and the second, unguarded registry publishing path is closed.
+- README links name the current SDK releases, TypeScript 7.2.1 and Python 4.2.1.
+
 ## 6.1.0 (2026-09-22)
 
 Capability-token replay state is now stored on disk instead of only in process memory. Processes using the same store share the same consumed-token records.
