@@ -60,8 +60,8 @@ This repo IS NOT:
 
 ## Related
 
-- SDK: https://github.com/aeoess/agent-passport-system
-- Python SDK: https://github.com/aeoess/agent-passport-python
-- Go SDK: https://github.com/aeoess/agent-passport-go
-- Remote MCP: https://github.com/aeoess/agent-passport-remote-mcp (Railway-deployed, auto-deploys on push)
+- SDK: https://github.com/agent-passport-system/agent-passport-system
+- Python SDK: https://github.com/agent-passport-system/agent-passport-python
+- Go SDK: https://github.com/agent-passport-system/agent-passport-go
+- Remote MCP: https://github.com/agent-passport-system/agent-passport-remote-mcp (Railway-deployed, auto-deploys on push)
 - Website: https://aeoess.com

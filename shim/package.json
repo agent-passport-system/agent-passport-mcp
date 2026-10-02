@@ -26,7 +26,7 @@
   "homepage": "https://agent-passport.org",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/aeoess/agent-passport-mcp.git",
+    "url": "git+https://github.com/agent-passport-system/agent-passport-mcp.git",
     "directory": "shim"
   },
   "dependencies": {

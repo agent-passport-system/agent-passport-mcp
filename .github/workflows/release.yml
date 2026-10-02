@@ -6,8 +6,9 @@ name: Release
 # SLSA build-provenance attestation, and an SBOM attached as assets.
 #
 # Adapted from the SDK's .github/workflows/release.yml in
-# aeoess/agent-passport-system, which is the reference implementation for
-# this pipeline. Every action sha below is copied from that file.
+# agent-passport-system/agent-passport-system, which is the reference
+# implementation for this pipeline. Every action sha below is copied from that
+# file.
 on:
   push:
     tags:
@@ -25,6 +26,7 @@ jobs:
       contents: write # create the GitHub Release and upload assets
       id-token: write # OIDC: npm Trusted Publishing + Sigstore signing for attestation
       attestations: write # persist the build-provenance attestation
+      actions: read # read this run's attempt to establish who requested it
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -33,6 +35,18 @@ jobs:
           # npm Trusted Publishing requires Node 22.14.0+ (npm CLI 11.5.1+).
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
+
+      # First, before anything is installed, built, attested or published. This
+      # repository has one privileged job, so this one placement is what gates
+      # every protected step below it. Repository ownership is not the release
+      # credential: the guard checks the immutable actor id of whoever pushed
+      # the tag and, through the run attempt API, of whoever asked for this
+      # attempt, so a rerun cannot reuse an earlier attempt's authorization.
+      # It fails closed on anything it cannot establish.
+      - name: Require the authorized release actor
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node .github/scripts/release-actor-state.mjs
 
       - name: Verify tag matches package.json version
         run: |

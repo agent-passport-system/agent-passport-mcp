@@ -1,7 +1,7 @@
 # Capability Token v0.1 — Reference Implementation
 
 **Status:** v0.1 reference implementation, branch `feat/v0.1-capability-tokens`
-**Spec:** [`agent-passport-system/docs/CAPABILITY-TOKEN-SPEC-DRAFT.md`](https://github.com/aeoess/agent-passport-system/blob/main/docs/CAPABILITY-TOKEN-SPEC-DRAFT.md) (v0.1, 2026-04-23)
+**Spec:** [`agent-passport-system/docs/CAPABILITY-TOKEN-SPEC-DRAFT.md`](https://github.com/agent-passport-system/agent-passport-system/blob/main/docs/CAPABILITY-TOKEN-SPEC-DRAFT.md) (v0.1, 2026-04-23)
 **Repo:** `agent-passport-mcp`
 
 This is the first running implementation of the four-message capability-token protocol. It exists to prove that the closure property described in the spec works against real signatures and real verification — not as a running service.

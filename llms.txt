@@ -21,14 +21,14 @@ Ed25519 ActionReceipt, AuthorityBoundaryReceipt, CustodyReceipt, ContestabilityR
 
 ## Related projects
 
-- SDK: https://github.com/aeoess/agent-passport-system
-- Python SDK: https://github.com/aeoess/agent-passport-python
+- SDK: https://github.com/agent-passport-system/agent-passport-system
+- Python SDK: https://github.com/agent-passport-system/agent-passport-python
 - Rust SDK: https://crates.io/crates/agent-passport-system
-- Go SDK: https://github.com/aeoess/agent-passport-go
-- Remote MCP: https://github.com/aeoess/agent-passport-remote-mcp (Railway-deployed, mcp.aeoess.com)
+- Go SDK: https://github.com/agent-passport-system/agent-passport-go
+- Remote MCP: https://github.com/agent-passport-system/agent-passport-remote-mcp (Railway-deployed, mcp.aeoess.com)
 - Website: https://aeoess.com
 - Full project reference: https://agent-passport.org/llms-full.txt
-- Security advisories: https://github.com/aeoess/agent-passport-mcp/security/advisories
+- Security advisories: https://github.com/agent-passport-system/agent-passport-mcp/security/advisories
 
 ## Papers
 

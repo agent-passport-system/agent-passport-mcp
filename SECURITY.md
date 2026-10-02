@@ -63,7 +63,7 @@ The Agent Passport System operates under these assumptions:
 Every `agent-passport-system` version from 1.5.1 through 5.0.3 is unsupported.
 Every `agent-passport-system-mcp` version before 6.0.0 depends on an SDK line inside those advisories and is unsupported.
 The SDK advisories are published at
-https://github.com/aeoess/agent-passport-system/security/advisories.
+https://github.com/agent-passport-system/agent-passport-system/security/advisories.
 
 ## Recognition
 
