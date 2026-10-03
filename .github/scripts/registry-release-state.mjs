@@ -29,11 +29,13 @@ const BOUNDED_ERROR_LENGTH = 120;
 const TIMEOUT_MS = 15_000;
 
 // npm serves a freshly published version through a CDN, so the version
-// document can lag the publish by a few seconds. A 404 immediately after a
+// document can lag the publish by a few minutes. On the 6.1.1 release npm
+// reported the package as still processing and the version document returned
+// 404 for longer than the earlier four attempts covered. A 404 immediately after a
 // successful publish is far more likely to be propagation than a real absence,
 // so the lookup is retried a bounded number of times. It still fails closed:
 // exhausting the attempts is a refusal, not a pass.
-export const LOOKUP_ATTEMPTS = 4;
+export const LOOKUP_ATTEMPTS = 12;
 export const LOOKUP_RETRY_MS = 15_000;
 
 export class RegistryReleaseError extends Error {
