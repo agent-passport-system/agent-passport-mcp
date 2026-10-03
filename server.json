@@ -8,12 +8,12 @@
     "url": "https://github.com/agent-passport-system/agent-passport-mcp",
     "source": "github"
   },
-  "version": "6.1.1",
+  "version": "6.1.2",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "agent-passport-system-mcp",
-      "version": "6.1.1",
+      "version": "6.1.2",
       "transport": {
         "type": "stdio"
       }

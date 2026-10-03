@@ -3,7 +3,7 @@
   "name": "io.github.agent-passport-system/agent-passport-mcp",
   "title": "Agent Passport System — Cryptographic Identity for AI Agents",
   "description": "Cryptographic identity, delegation, governance, and commerce for AI agents. 152 tools.",
-  "version": "6.1.1",
+  "version": "6.1.2",
   "websiteUrl": "https://aeoess.com",
   "repository": {
     "url": "https://github.com/agent-passport-system/agent-passport-mcp",
@@ -13,7 +13,7 @@
     {
       "registryType": "npm",
       "identifier": "agent-passport-system-mcp",
-      "version": "6.1.1",
+      "version": "6.1.2",
       "transport": {
         "type": "stdio"
       },
