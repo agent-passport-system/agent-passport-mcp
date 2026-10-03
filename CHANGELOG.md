@@ -1,5 +1,9 @@
 # Changelog
 
+## 6.1.2 (2026-10-02)
+
+No server code changes from 6.1.1. The 6.1.1 release reached npm but stopped before the MCP Registry step, because npm took longer than the descriptor check waited. This release goes through the corrected workflow so the server is listed in the MCP Registry as `io.github.agent-passport-system/agent-passport-mcp`.
+
 ## 6.1.1 (2026-10-02)
 
 First release from the agent-passport-system organization. No server code changes from 6.1.0.
