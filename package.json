@@ -51,7 +51,7 @@
   "homepage": "https://github.com/agent-passport-system/agent-passport-mcp",
   "dependencies": {
     "@modelcontextprotocol/server": "2.0.0",
-    "agent-passport-system": "^6.0.0",
+    "agent-passport-system": "^8.0.0",
     "zod": "^4.2.0"
   },
   "overrides": {
