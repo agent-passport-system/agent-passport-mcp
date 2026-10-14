@@ -2127,7 +2127,7 @@ server.registerTool("create_delegation", { description: "[OPERATOR] Create a sco
         delegated_to: z.string().describe("Public key of the agent receiving delegation"),
         scope: z.array(z.string()).describe("Scopes to grant (e.g. ['web_search', 'code_execution'])"),
         spend_limit: z.number().default(500).describe("Maximum spend allowed"),
-        max_depth: z.number().default(1).describe("How many levels of sub-delegation"),
+        max_depth: z.number().int().min(0).default(1).describe("How many levels of sub-delegation (a non-negative integer)"),
         expires_in_hours: z.number().default(24).describe("Delegation validity in hours"),
       }) }, async (args) => {
         recordBehavior('create_delegation');
