@@ -1,5 +1,18 @@
 # Changelog
 
+## 7.0.0 (2026-10-14)
+
+The server now runs on `agent-passport-system ^8.0.0`, up from `^6.0.0`. Every 6.x install resolved SDK 6.x and missed the SDK 7.x and 8.0.0 verification changes. The major version moves for the same reason as 6.0.0: a tool answer changes on the same input, not because this server's own API changed shape.
+
+### Breaking
+
+- **`create_delegation` takes `max_depth` as a non-negative integer.** SDK 8.0.0 refuses to sign any other depth, so a value such as `-1` or `1.5` used to reach the SDK and come back as an error. The input schema now rejects it.
+- **Delegation depth follows SDK 8.0.0.** A present `maxDepth` or `currentDepth` that is not a non-negative integer is invalid instead of coerced, and `maxDepth: null` reads as absent instead of 0. Sub-delegating from a parent without a non-negative integer `maxDepth` fails.
+
+### Unchanged
+
+Of the SDK names this server imports, only `createDelegation`, `subDelegate` and `verifyDelegation` appear in a breaking entry of the SDK changelog between 6.0.1 and 8.0.0. Tool names, input schemas other than `max_depth`, and the 152 tool inventory are unchanged.
+
 ## 6.1.2 (2026-10-02)
 
 No server code changes from 6.1.1. The 6.1.1 release reached npm but stopped before the MCP Registry step, because npm took longer than the descriptor check waited. This release goes through the corrected workflow so the server is listed in the MCP Registry as `io.github.agent-passport-system/agent-passport-mcp`.
