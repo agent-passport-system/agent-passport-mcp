@@ -75,7 +75,7 @@ Or for remote SSE:
 
 ## Tools (152)
 
-Every tool carries MCP annotations. **Read-only** means the tool writes no file, calls no mutating remote endpoint and changes no session state other tools read. **Destructive** means it deletes, revokes, supersedes or irreversibly consumes something. **Network** means it can contact an external host (see [Network and local files](#network-and-local-files)). The hint values live in `src/toolAnnotations.ts`.
+Every tool carries MCP annotations. **Read-only** means the tool writes no file, calls no mutating remote endpoint and changes no session state other tools read. **Destructive** means it deletes, revokes, supersedes, overwrites or irreversibly consumes something. **Network** means it can contact an external host (see [Network and local files](#network-and-local-files)). The hint values live in `src/toolAnnotations.ts`.
 
 ### Meta: 2 tools
 
@@ -138,7 +138,7 @@ Every tool carries MCP annotations. **Read-only** means the tool writes no file,
 | `resolve_authority` | Resolve Authority Tier | yes |  |  | Compute effective reputation score and authority tier for an agent in a given scope. |
 | `review_promotion` | Review Agent Promotion |  |  |  | Create a signed promotion review for another agent. |
 | `update_reputation` | Update Agent Reputation |  |  |  | Update an agent's reputation after a task result. |
-| `vouch_reputation` | Vouch Reputation | yes |  |  | Create a vouched reputation for cross-gateway portability (WS-3). |
+| `vouch_reputation` | Vouch Reputation | yes |  |  | Create a signed reputation summary that another gateway can import. |
 
 ### Coordination and provisional statements: 15 tools
 
@@ -150,7 +150,7 @@ Every tool carries MCP annotations. **Read-only** means the tool writes no file,
 | `aps_verify_promotion` | Verify Statement Promotion | yes |  |  | Commitment boundary: verify that a promoted statement's PromotionEvent cryptographically satisfies the PromotionPolicy (policy_reference match, promoter in required_signers, thr... |
 | `aps_withdraw_provisional` | Withdraw Provisional Statement | yes |  |  | Commitment boundary: author withdraws their own provisional statement. |
 | `assign_agent` | Assign Agent to Task Role |  |  |  | [OPERATOR] Assign an agent to a role in a task. |
-| `complete_task` | Complete Task |  |  |  | [OPERATOR] Close the task unit with final status and retrospective. |
+| `complete_task` | Complete Task |  | yes |  | [OPERATOR] Close the task unit with final status and retrospective. |
 | `create_task_brief` | Create Task Brief |  |  |  | [OPERATOR] Create a new task with roles, deliverables, and acceptance criteria. |
 | `get_evidence` | Get Handed-Off Evidence | yes |  |  | [ANALYST/BUILDER/REVIEWER] Get evidence that was handed off to you. |
 | `get_task_detail` | Get Task Detail | yes |  |  | Get full details of a specific task including all evidence, reviews, and deliverables. |
@@ -184,7 +184,7 @@ Every tool carries MCP annotations. **Read-only** means the tool writes no file,
 | `add_principal_report` | Add Principal Outcome Report |  |  |  | Add principal's perspective to an outcome record. |
 | `aps_attribution_receipt_id` | Compute Attribution Receipt ID | yes |  |  | Representation boundary helper: compute the canonical sha256 id of an AttributionReceipt's unsigned core. |
 | `aps_check_artifact_citations` | Check Artifact Citations | yes |  |  | Representation boundary: gate a binding artifact's citations. |
-| `aps_check_projection_consistency` | Check Projection Consistency | yes |  |  | Cross-projection consistency check (§2.4): given two projections, confirm they originate from the same signed receipt. |
+| `aps_check_projection_consistency` | Check Projection Consistency | yes |  |  | Cross-projection consistency check: given two projections, confirm they originate from the same signed receipt. |
 | `aps_construct_attribution_primitive` | Construct Attribution Primitive | yes |  |  | Build and sign a four-axis AttributionPrimitive for an action. |
 | `aps_create_attribution_receipt` | Create Attribution Receipt | yes |  |  | Representation boundary: build a citer-signed AttributionReceipt attributing a claim to a third-party principal. |
 | `aps_project_attribution` | Project Attribution Axis | yes |  |  | Extract a single-axis projection from an AttributionPrimitive. |
@@ -193,19 +193,19 @@ Every tool carries MCP annotations. **Read-only** means the tool writes no file,
 | `aps_verify_attribution_primitive` | Verify Attribution Primitive | yes |  |  | End-to-end verify of a full AttributionPrimitive: constructs projections for all four axes and verifies each one. |
 | `aps_verify_attribution_projection` | Verify Attribution Projection | yes |  |  | Verify a single-axis AttributionProjection under the issuer's Ed25519 public key. |
 | `attest_to_floor` | Attest to Values Floor | yes |  |  | Attest that your agent agrees to abide by the loaded Values Floor. |
-| `complete_action` | Complete Action (Deprecated) | yes |  |  | [deprecated in v3.0.0 — use gateway.aeoess.com REST API] Complete a permitted action and get the full 3-signature proof chain. |
+| `complete_action` | Complete Action (Deprecated) | yes |  |  | [deprecated in v3.0.0, use the gateway.aeoess.com REST API] Complete a permitted action and get the full 3-signature proof chain. |
 | `compute_governance_taint` | Compute Governance Taint | yes |  |  | Compute governance taint level for an artifact based on its derivation chain and revoked sources. |
-| `create_agent_context` | Create Agent Context (Deprecated) | yes |  |  | [deprecated in v3.0.0 — use gateway.aeoess.com REST API] Create an enforcement context that automatically runs every action through the 3-signature policy chain. |
+| `create_agent_context` | Create Agent Context (Deprecated) | yes |  |  | [deprecated in v3.0.0, use the gateway.aeoess.com REST API] Create an enforcement context that automatically runs every action through the 3-signature policy chain. |
 | `create_approval_request` | Create Approval Request |  |  |  | Create a multi-party approval request for charter amendments, office transfers, etc. |
 | `create_artifact_provenance` | Create Artifact Provenance | yes |  |  | Tag an agent-generated artifact with provenance metadata (content hash, risk class, authoring agent). |
 | `create_chained_governance_block` | Create Chained Governance Block | yes |  |  | Create a governance block for derivative content that references the original publisher's block. |
-| `create_charter` | Create Charter |  |  |  | Create a new institutional charter — the constitutional root of an organization. |
+| `create_charter` | Create Charter |  |  |  | Create a new institutional charter, the constitutional root of an organization. |
 | `create_intent` | Create Action Intent |  |  |  | Declare an intent to perform an action. |
 | `create_outcome_record` | Create Outcome Record |  |  |  | Register an action outcome (agent perspective). |
 | `create_policy_context` | Create Policy Context | yes |  |  | Create a v2 PolicyContext with mandatory sunset. |
 | `define_emergency_pathway` | Define Emergency Pathway |  |  |  | Define a pre-authorized emergency pathway at delegation time. |
 | `evaluate_intent` | Evaluate Action Intent | yes |  |  | [OPERATOR] Evaluate an intent against the Values Floor policy engine. |
-| `execute_with_context` | Execute with Context (Deprecated) | yes |  |  | [deprecated in v3.0.0 — use gateway.aeoess.com REST API] Execute an action through the enforcement context. |
+| `execute_with_context` | Execute with Context (Deprecated) | yes |  |  | [deprecated in v3.0.0, use the gateway.aeoess.com REST API] Execute an action through the enforcement context. |
 | `generate_aps_txt` | Generate aps.txt | yes |  |  | Generate a signed aps.txt file for site-wide governance. |
 | `generate_governance_block` | Generate Governance Block | yes |  |  | Generate a cryptographically signed governance block for embedding in HTML pages. |
 | `governance_360` | Run Governance 360 Loop | yes |  |  | Execute the full governance 360 loop on HTML content: extract governance block → verify signature + content hash → check usage terms → create signed access receipt. |
@@ -216,7 +216,7 @@ Every tool carries MCP annotations. **Read-only** means the tool writes no file,
 | `sign_amendment` | Sign Charter Amendment |  |  |  | Add a signature to a proposed amendment. |
 | `sign_charter` | Sign Charter |  |  |  | Add a founding signature to a charter. |
 | `verify_amendment` | Verify Charter Amendment | yes |  |  | Verify an amendment against its charter's amendment policy. |
-| `verify_aps_txt` | Verify aps.txt | yes |  |  | Verify a signed aps.txt file — checks signature and DID consistency. |
+| `verify_aps_txt` | Verify aps.txt | yes |  |  | Verify a signed aps.txt file by checking its signature and DID consistency. |
 | `verify_charter` | Verify Charter | yes |  |  | Verify a charter's integrity: content hash, signatures, quorum, dissolution, office consistency, incompatibility, and, when the charter declares citations, the AttributionConsen... |
 | `verify_governance_block` | Verify Governance Block | yes |  |  | Verify a governance block's signature, content hash, DID consistency and expiry against the original content. |
 
@@ -226,7 +226,7 @@ Every tool carries MCP annotations. **Read-only** means the tool writes no file,
 |------|-------|-----------|-------------|---------|-------------|
 | `commerce_preflight` | Commerce Preflight (Moved to Gateway) | yes |  |  | [moved to gateway in SDK 3.3.0] The 6-gate commerce preflight orchestration moved out of the SDK and MCP into the AEOESS gateway. |
 | `get_commerce_spend` | Get Commerce Spend | yes |  |  | Get spend analytics for a commerce delegation. |
-| `request_human_approval` | Build Human Approval Request | yes |  |  | Request human approval for a high-value purchase. |
+| `request_human_approval` | Build Human Approval Request | yes |  |  | Create an approval request record for a high-value purchase without notifying a human or storing the request. |
 
 ### Data governance: 20 tools
 
@@ -238,17 +238,17 @@ Every tool carries MCP annotations. **Read-only** means the tool writes no file,
 | `check_purpose_permitted` | Check Purpose Permitted | yes |  |  | Check if a purpose is permitted under source terms. |
 | `check_retention_expired` | Check Retention Expired | yes |  |  | Check if data retention has expired based on TTL policy. |
 | `check_usage_permitted` | Check Usage Permitted | yes |  |  | Check if a specific usage type is permitted under a governance block's terms. |
-| `create_access_receipt` | Create Access Receipt | yes |  |  | Create a signed access receipt — cryptographic proof that your agent consumed content under specific terms. |
-| `create_access_snapshot` | Create Access Snapshot | yes |  |  | Create an immutable access snapshot — freezes terms, jurisdiction, and constraints at moment of access. |
-| `create_data_enforcement_gate` | Create Data Enforcement Gate (Deprecated) | yes |  |  | [deprecated in v3.0.0 — use gateway.aeoess.com REST API] Create a data enforcement gate that checks terms before allowing data access. |
-| `create_decision_lineage_receipt` | Create Decision Lineage Receipt | yes |  |  | Create a Decision Lineage Receipt — traces which data sources influenced a decision. |
-| `create_derivation_receipt` | Create Derivation Receipt |  |  |  | Create a signed derivation receipt tracking how data was transformed. |
+| `create_access_receipt` | Create Access Receipt | yes |  |  | Create a signed receipt recording the supplied content reference and terms. |
+| `create_access_snapshot` | Create Access Snapshot | yes |  |  | Create a signed access snapshot that pins terms, jurisdiction, and constraints at the moment of access, so a later change to the source terms does not alter what the snapshot re... |
+| `create_data_enforcement_gate` | Create Data Enforcement Gate (Deprecated) | yes |  |  | [deprecated in v3.0.0, use the gateway.aeoess.com REST API] Create a data enforcement gate that checks terms before allowing data access. |
+| `create_decision_lineage_receipt` | Create Decision Lineage Receipt | yes |  |  | Create a Decision Lineage Receipt that traces which data sources influenced a decision. |
+| `create_derivation_receipt` | Create Derivation Receipt |  | yes |  | Create a signed derivation receipt tracking how data was transformed. |
 | `declare_reidentification_risk` | Declare Re-identification Risk | yes |  |  | Declare re-identification risk for transformed or synthetic data. |
-| `detect_purpose_drift` | Detect Purpose Drift | yes |  |  | Detect when data purpose drifts through a workflow (e.g. |
+| `detect_purpose_drift` | Detect Purpose Drift | yes |  |  | Detect when data purpose drifts through a workflow (e.g. research → commercial). |
 | `evaluate_revocation_impact` | Evaluate Revocation Impact | yes |  |  | Evaluate what happens when a data source revokes consent. |
-| `file_data_dispute` | Build Data Dispute Record | yes |  |  | File a dispute against a data artifact. |
-| `generate_settlement` | Generate Settlement (Deprecated) | yes |  |  | [deprecated in v3.0.0 — use gateway.aeoess.com REST API] Generate a Merkle-committed, signed settlement record for a period. |
-| `query_contributions` | Query Contributions (Deprecated) | yes |  |  | [deprecated in v3.0.0 — use gateway.aeoess.com REST API] Query the data contribution ledger. |
+| `file_data_dispute` | Build Data Dispute Record | yes |  |  | Create a signed dispute record against a data artifact without submitting, storing, or sending it. |
+| `generate_settlement` | Generate Settlement (Deprecated) | yes |  |  | [deprecated in v3.0.0, use the gateway.aeoess.com REST API] Generate a Merkle-committed, signed settlement record for a period. |
+| `query_contributions` | Query Contributions (Deprecated) | yes |  |  | [deprecated in v3.0.0, use the gateway.aeoess.com REST API] Query the data contribution ledger. |
 | `register_data_source` | Register Data Source |  |  |  | Register a data source with terms for agent access. |
 | `resolve_lineage` | Resolve Data Lineage | yes |  |  | Resolve the full derivation chain for an artifact. |
 | `resolve_rights_propagation` | Resolve Rights Propagation | yes |  |  | Resolve what rights propagate when data is transformed. |
@@ -257,10 +257,10 @@ Every tool carries MCP annotations. **Read-only** means the tool writes no file,
 
 | Tool | Title | Read-only | Destructive | Network | Description |
 |------|-------|-----------|-------------|---------|-------------|
-| `create_gateway` | Create Gateway (Deprecated) | yes |  |  | [deprecated in v3.0.0 — use gateway.aeoess.com REST API] Create a ProxyGateway enforcement boundary. |
-| `gateway_approve` | Gateway Approve (Deprecated) | yes |  |  | [deprecated in v3.0.0 — use gateway.aeoess.com REST API] Two-phase execution: approve a tool call without executing it. |
-| `gateway_process_tool_call` | Gateway Process Tool Call (Deprecated) | yes |  |  | [deprecated in v3.0.0 — use gateway.aeoess.com REST API] Process a tool call through the gateway enforcement boundary. |
-| `gateway_stats` | Gateway Stats (Deprecated) | yes |  |  | [deprecated in v3.0.0 — use gateway.aeoess.com REST API] Get gateway statistics. |
+| `create_gateway` | Create Gateway (Deprecated) | yes |  |  | [deprecated in v3.0.0, use the gateway.aeoess.com REST API] Create a ProxyGateway enforcement boundary. |
+| `gateway_approve` | Gateway Approve (Deprecated) | yes |  |  | [deprecated in v3.0.0, use the gateway.aeoess.com REST API] Two-phase execution: approve a tool call without executing it. |
+| `gateway_process_tool_call` | Gateway Process Tool Call (Deprecated) | yes |  |  | [deprecated in v3.0.0, use the gateway.aeoess.com REST API] Process a tool call through the gateway enforcement boundary. |
+| `gateway_stats` | Gateway Stats (Deprecated) | yes |  |  | [deprecated in v3.0.0, use the gateway.aeoess.com REST API] Get gateway statistics. |
 
 ### Intent Network: 5 tools
 
@@ -277,9 +277,9 @@ Every tool carries MCP annotations. **Read-only** means the tool writes no file,
 | Tool | Title | Read-only | Destructive | Network | Description |
 |------|-------|-----------|-------------|---------|-------------|
 | `compare_timestamps` | Compare Hybrid Timestamps | yes |  |  | Compare two hybrid timestamps to determine ordering. |
-| `create_hybrid_timestamp` | Create Hybrid Timestamp | yes |  |  | Create a gateway-issued hybrid timestamp (Consilium Q1: HLC + NTP uncertainty). |
-| `create_reserve_attestation` | Create Reserve Attestation | yes |  |  | Create a signed reserve attestation proving a delegation has actual funds (GPT #15). |
-| `validate_temporal_rights` | Validate Temporal Rights | yes |  |  | Validate a TemporalRights object — check validity window, grace period, supersession, challenge window. |
+| `create_hybrid_timestamp` | Create Hybrid Timestamp | yes |  |  | Create a hybrid timestamp using the local clock and a supplied uncertainty bound. |
+| `create_reserve_attestation` | Create Reserve Attestation | yes |  |  | Sign a reserve attestation using the supplied amount and assurance class. |
+| `validate_temporal_rights` | Validate Temporal Rights | yes |  |  | Validate a TemporalRights object by checking its validity window, grace period, supersession, and challenge window. |
 
 ### Attribution weights: 2 tools
 
@@ -336,7 +336,7 @@ Local files the server reads or writes, all under the user's home directory unle
 | `AGORA_PATH`, default `~/aeoess_web/agora/messages.json` and `latest.json` beside it | `post_agora_message` | read at startup, written on post |
 | `AGENTS_PATH`, default `~/aeoess_web/agora/agents.json` | `list_agents` | read |
 | `COMMS_PATH`, default `~/aeoess_web/comms/` | `send_message`, `broadcast`, `check_messages` (writes only with `mark_read`) | read and written |
-| `APS_NULLIFIER_DIR`, default `~/.agent-passport-nullifiers/` | `aps_capability_sign_effect` | consumed token preimages, written on redemption |
+| `APS_NULLIFIER_DIR`, default `~/.agent-passport-nullifiers/` | `aps_capability_sign_effect` | SHA-256 hashes identifying consumed tokens, with redemption timestamps. Raw preimages are not stored. Written on redemption |
 | Claude Desktop and Cursor MCP config files | the `setup` command, not a tool | adds the `agent-passport` server entry |
 
 Keys are never written to disk by the server. `identify` holds the agent key pair in process memory for the session, and `AGENT_KEY` / `AGENT_PRIVATE_KEY` supply it from the environment. `generate_keys`, `issue_passport` and `rotate_key` return private keys in the tool response, and `generate_keys` and `issue_passport` redact them when the server runs in remote mode. `create_principal` keeps the principal key in memory and returns only its first 16 characters. Many signing tools take a private key as an argument and use it for that call only. Session state (delegations, endorsements, charters, intents) lives in memory and is lost on restart.

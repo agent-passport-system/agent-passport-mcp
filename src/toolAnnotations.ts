@@ -67,6 +67,8 @@ function rw(
 
 const ADD = { destructive: false, idempotent: false, openWorld: false } as const;
 const SET = { destructive: false, idempotent: true, openWorld: false } as const;
+/** Overwrites a stored record with a fresh one each call: the old record is gone. */
+const REPLACE = { destructive: true, idempotent: false, openWorld: false } as const;
 
 export const TOOL_ANNOTATIONS: Record<string, ToolAnnotationEntry> = {
   // ── Meta ──
@@ -94,7 +96,7 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotationEntry> = {
   assign_agent: rw("Assign Agent to Task Role", ADD),
   review_evidence: rw("Review Evidence Packet", ADD),
   handoff_evidence: rw("Hand Off Evidence", ADD),
-  complete_task: rw("Complete Task", ADD), // sets the task's completion record; a later call replaces it
+  complete_task: rw("Complete Task", REPLACE), // a later call replaces the stored completion record (new signature and timestamp)
   accept_assignment: rw("Accept Task Assignment", ADD),
   submit_evidence: rw("Submit Evidence Packet", ADD),
   get_evidence: ro("Get Handed-Off Evidence"),
@@ -113,7 +115,7 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotationEntry> = {
   get_agora_topics: ro("List Agora Topics"),
   get_agora_thread: ro("Get Agora Thread"),
   get_agora_by_topic: ro("Get Agora Messages by Topic"),
-  register_agora_agent: rw("Register Agent in Session Agora", SET), // upsert by public key
+  register_agora_agent: rw("Register Agent in Session Agora", ADD), // upsert by public key; an identical call still replaces joinedAt, so not idempotent
   register_agora_public: rw("Register Agent in Public Agora", { destructive: false, idempotent: false, openWorld: true }), // opens a GitHub issue via api.github.com when a token is available
 
   // ── Comms (files under $COMMS_PATH) ──
@@ -185,7 +187,7 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotationEntry> = {
 
   // ── Data governance ──
   register_data_source: rw("Register Data Source", ADD), // session
-  create_derivation_receipt: rw("Create Derivation Receipt", ADD), // session derivation store
+  create_derivation_receipt: rw("Create Derivation Receipt", REPLACE), // session derivation store, keyed by derivativeId; a repeat call replaces the stored receipt
   resolve_lineage: ro("Resolve Data Lineage"),
   evaluate_revocation_impact: ro("Evaluate Revocation Impact"), // computes obligations; revokes nothing
   create_decision_lineage_receipt: ro("Create Decision Lineage Receipt"),

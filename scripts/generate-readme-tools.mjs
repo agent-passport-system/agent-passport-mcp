@@ -40,10 +40,18 @@ const GROUPS = [
   ["mutual-auth", "Mutual authentication"],
 ];
 
-function firstSentence(text) {
+// A period after one of these is not the end of a sentence ("(e.g. APS_PROFILE=data)").
+const ABBREVIATION_END = /\b(?:e\.g|i\.e|cf|vs)\.$/i;
+
+export function firstSentence(text) {
   const t = (text || "").replace(/\s+/g, " ").trim();
-  const m = t.match(/^(.+?[.!?])(\s|$)/);
-  let s = m ? m[1] : t;
+  let end = t.length;
+  for (const m of t.matchAll(/[.!?](?=\s|$)/g)) {
+    if (ABBREVIATION_END.test(t.slice(0, m.index + 1))) continue;
+    end = m.index + 1;
+    break;
+  }
+  let s = t.slice(0, end);
   if (s.length > 180) s = s.slice(0, 177).trimEnd() + "...";
   return s.replace(/\|/g, "\\|");
 }
@@ -69,7 +77,7 @@ export async function renderToolsBlock() {
   const lines = [START, "", `## Tools (${tools.length})`, ""];
   lines.push(
     "Every tool carries MCP annotations. **Read-only** means the tool writes no file, calls no mutating remote endpoint and changes no session state other tools read. " +
-    "**Destructive** means it deletes, revokes, supersedes or irreversibly consumes something. " +
+    "**Destructive** means it deletes, revokes, supersedes, overwrites or irreversibly consumes something. " +
     "**Network** means it can contact an external host (see [Network and local files](#network-and-local-files)). " +
     "The hint values live in `src/toolAnnotations.ts`.",
     "",

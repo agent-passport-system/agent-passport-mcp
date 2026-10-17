@@ -16,7 +16,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { listToolsOverStdio } from '../scripts/lib/list-tools.mjs'
-import { renderToolsBlock, spliceReadme } from '../scripts/generate-readme-tools.mjs'
+import { renderToolsBlock, spliceReadme, firstSentence } from '../scripts/generate-readme-tools.mjs'
 
 const HINTS = ['readOnlyHint', 'destructiveHint', 'idempotentHint', 'openWorldHint']
 const manifest = JSON.parse(readFileSync(new URL('../tools-manifest.json', import.meta.url), 'utf8'))
@@ -74,6 +74,33 @@ test('known side-effecting tools keep their hints (guards against a careless tab
   for (const n of ['create_task_brief', 'post_agora_message', 'send_message', 'check_messages', 'aps_capability_sign_effect']) {
     assert.equal(byName[n].readOnlyHint, false, `${n} writes local files`)
   }
+})
+
+test('tools that overwrite a stored record are destructive and not idempotent', async () => {
+  const byName = Object.fromEntries((await wireTools()).map((t) => [t.name, t.annotations]))
+  // complete_task replaces unit.completion (new signature and timestamp) in the task store.
+  // create_derivation_receipt replaces the session receipt stored under the same derivativeId.
+  for (const n of ['complete_task', 'create_derivation_receipt']) {
+    assert.equal(byName[n].readOnlyHint, false, `${n} writes state`)
+    assert.equal(byName[n].destructiveHint, true, `${n} overwrites an existing record`)
+    assert.equal(byName[n].idempotentHint, false, `${n} produces a different record on each call`)
+  }
+  // register_agora_agent upserts by public key but stamps a fresh joinedAt each call.
+  assert.equal(byName.register_agora_agent.idempotentHint, false, 'register_agora_agent replaces joinedAt on identical calls')
+})
+
+test('README summaries do not stop at abbreviations', () => {
+  assert.equal(firstSentence('Detect drift (e.g. research to commercial). Second sentence.'), 'Detect drift (e.g. research to commercial).')
+  assert.equal(firstSentence('Pick one, i.e. the first. Then more.'), 'Pick one, i.e. the first.')
+  assert.equal(firstSentence('Plain sentence. Another.'), 'Plain sentence.')
+})
+
+test('README tool rows contain no em dash', () => {
+  const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8')
+  const rows = readme.split('\n').filter((l) => l.startsWith('| `'))
+  assert.ok(rows.length >= manifest.tools.length, `expected a README row per tool, found ${rows.length}`)
+  const bad = rows.filter((l) => l.includes('—'))
+  assert.deepEqual(bad, [], `README tool rows with U+2014:\n${bad.join('\n')}`)
 })
 
 test('README tool tables match the running server', async () => {

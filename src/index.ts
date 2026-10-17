@@ -1163,7 +1163,7 @@ server.registerTool("generate_keys", { description: "Generate an Ed25519 keypair
 // TOOL: issue_passport
 // ═══════════════════════════════════════
 
-server.registerTool("issue_passport", { description: "Issue a complete agent passport with keys, signed passport, attestation summary, and optional values floor in a single call. The server silently captures Tier 0 observed signals and computes a passport grade (0-3). Use this to onboard any agent — no npm install required.", inputSchema: z.object({
+server.registerTool("issue_passport", { description: "Issue a complete agent passport with keys, signed passport, attestation summary, and optional values floor in a single call. The server silently captures Tier 0 observed signals and computes a passport grade (0-3). Use this to onboard any agent without an npm install.", inputSchema: z.object({
         name: z.string().describe("Agent name (human-readable)"),
         owner: z.string().describe("Owner/principal identifier"),
         mission: z.string().optional().describe("Agent mission description"),
@@ -1400,7 +1400,7 @@ server.registerTool("list_issuance_records", { description: "List all stored iss
 // TOOL: get_behavioral_sequence
 // ═══════════════════════════════════════
 
-server.registerTool("get_behavioral_sequence", { description: "Get the post-issuance behavioral sequence for an agent. Shows the first 10 tool calls after passport issuance. Real agents do work. Farming agents extract. This is consilium signal #2.", inputSchema: z.object({
+server.registerTool("get_behavioral_sequence", { description: "Get the post-issuance behavioral sequence for an agent. Shows the first 10 tool calls after passport issuance. Real agents do work. Farming agents extract.", inputSchema: z.object({
         agent_id: z.string().describe("The agent ID to query"),
       }) }, async (args) => {
         const sequence = state.postIssuanceBehavior.get(args.agent_id);
@@ -1812,7 +1812,7 @@ server.registerTool("handoff_evidence", { description: "[OPERATOR] Transfer appr
         }
       });
 
-server.registerTool("complete_task", { description: "[OPERATOR] Close the task unit with final status and retrospective.", inputSchema: z.object({
+server.registerTool("complete_task", { description: "[OPERATOR] Close the task unit with final status and retrospective. A later call replaces the stored completion record.", inputSchema: z.object({
         task_id: z.string().describe("Task ID"),
         status: z.enum(["completed", "failed", "partial"]).describe("Final status"),
         retrospective: z.string().optional().describe("What went well, what didn't"),
@@ -2812,7 +2812,7 @@ server.registerTool("evaluate_intent", { description: "[OPERATOR] Evaluate an in
 // COMMERCE TOOLS (Layer 8)
 // ═══════════════════════════════════════
 
-server.registerTool("commerce_preflight", { description: "[moved to gateway in SDK 3.3.0] The 6-gate commerce preflight orchestration moved out of the SDK and MCP into the AEOESS gateway. This tool no longer runs the pipeline locally; it returns a machine-readable deprecation notice pointing to the gateway commerce endpoint. Compose the pure gate predicates from the SDK yourself, or call the gateway.", inputSchema: z.object({
+server.registerTool("commerce_preflight", { description: "[moved to gateway in SDK 3.3.0] The 6-gate commerce preflight orchestration moved out of the SDK and MCP into the AEOESS gateway. This tool no longer runs the pipeline locally. It returns a machine-readable deprecation notice pointing to the gateway commerce endpoint. Compose the pure gate predicates from the SDK yourself, or call the gateway.", inputSchema: z.object({
         merchant_name: z.string().describe("Merchant to purchase from"),
         amount: z.number().describe("Purchase amount"),
         currency: z.string().default("usd").describe("Currency code"),
@@ -2866,7 +2866,7 @@ server.registerTool("get_commerce_spend", { description: "Get spend analytics fo
         };
       });
 
-server.registerTool("request_human_approval", { description: "Request human approval for a high-value purchase.", inputSchema: z.object({
+server.registerTool("request_human_approval", { description: "Create an approval request record for a high-value purchase without notifying a human or storing the request. Returns the request ID and expiry.", inputSchema: z.object({
         agent_id: z.string().describe("Agent requesting approval"),
         merchant: z.string().describe("Merchant name"),
         amount: z.number().describe("Purchase amount"),
@@ -2891,7 +2891,7 @@ server.registerTool("request_human_approval", { description: "Request human appr
               requestId: approval.requestId,
               status: approval.status,
               expiresAt: approval.expiresAt,
-              note: 'Approval request created. Human must approve before checkout can proceed.',
+              note: 'Approval request record created. No human has been notified and the request is not stored. Deliver it to the approver through your own channel before checkout proceeds.',
             }, null, 2),
           }],
         };
@@ -2901,7 +2901,7 @@ server.registerTool("request_human_approval", { description: "Request human appr
 // AGENT CONTEXT — Enforcement Middleware
 // ═══════════════════════════════════════
 
-server.registerTool("create_agent_context", { description: "[deprecated in v3.0.0 — use gateway.aeoess.com REST API] Create an enforcement context that automatically runs every action through the 3-signature policy chain.", inputSchema: z.object({
+server.registerTool("create_agent_context", { description: "[deprecated in v3.0.0, use the gateway.aeoess.com REST API] Create an enforcement context that automatically runs every action through the 3-signature policy chain.", inputSchema: z.object({
         name: z.string().describe("Agent name"),
         mission: z.string().describe("Agent mission statement"),
         enforcement: z.enum(["auto", "manual", "strict"]).default("auto").describe("Enforcement level"),
@@ -2909,14 +2909,14 @@ server.registerTool("create_agent_context", { description: "[deprecated in v3.0.
         spend_limit: z.number().default(1000).describe("Maximum spend allowed"),
       }) }, async (_args) => movedToGateway("create_agent_context"));
 
-server.registerTool("execute_with_context", { description: "[deprecated in v3.0.0 — use gateway.aeoess.com REST API] Execute an action through the enforcement context.", inputSchema: z.object({
+server.registerTool("execute_with_context", { description: "[deprecated in v3.0.0, use the gateway.aeoess.com REST API] Execute an action through the enforcement context.", inputSchema: z.object({
         action_type: z.string().describe("Action type (e.g. 'api:fetch', 'data:write', 'commerce:checkout')"),
         target: z.string().describe("Target of the action (e.g. URL, file path, resource ID)"),
         scope: z.string().describe("Required scope for this action (must match a delegated scope)"),
         estimated_spend: z.number().optional().describe("Estimated spend for commerce actions"),
       }) }, async (_args) => movedToGateway("execute_with_context"));
 
-server.registerTool("complete_action", { description: "[deprecated in v3.0.0 — use gateway.aeoess.com REST API] Complete a permitted action and get the full 3-signature proof chain.", inputSchema: z.object({
+server.registerTool("complete_action", { description: "[deprecated in v3.0.0, use the gateway.aeoess.com REST API] Complete a permitted action and get the full 3-signature proof chain.", inputSchema: z.object({
         intent_id: z.string().describe("Intent ID from execute_with_context result"),
         status: z.enum(["success", "failure", "partial"]).describe("Outcome of the action"),
         summary: z.string().describe("Brief description of what was accomplished"),
@@ -3267,7 +3267,7 @@ server.registerTool("review_promotion", { description: "Create a signed promotio
         }
       });
 
-server.registerTool("update_reputation", { description: "Update an agent's reputation after a task result. Success increases mu and decreases sigma; failure does the opposite. Higher evidence class = larger effect.", inputSchema: z.object({
+server.registerTool("update_reputation", { description: "Update an agent's reputation after a task result. Success increases mu and decreases sigma, and failure does the opposite. Higher evidence class = larger effect.", inputSchema: z.object({
         agentId: z.string().describe("Agent whose reputation to update"),
         principalId: z.string().describe("Principal ID"),
         scope: z.string().describe("Reputation scope"),
@@ -3323,13 +3323,13 @@ server.registerTool("get_promotion_history", { description: "Get the promotion r
 // remain in the SDK — rebuild a gateway locally from those, or use the
 // hosted gateway at gateway.aeoess.com.
 
-server.registerTool("create_gateway", { description: "[deprecated in v3.0.0 — use gateway.aeoess.com REST API] Create a ProxyGateway enforcement boundary.", inputSchema: z.object({
+server.registerTool("create_gateway", { description: "[deprecated in v3.0.0, use the gateway.aeoess.com REST API] Create a ProxyGateway enforcement boundary.", inputSchema: z.object({
         gatewayId: z.string().optional().describe("Custom gateway ID"),
         approvalTTLSeconds: z.number().optional().describe("Two-phase approval timeout"),
         maxPendingPerAgent: z.number().optional().describe("Max pending approvals per agent"),
       }) }, async (_args) => movedToGateway("create_gateway"));
 
-server.registerTool("gateway_process_tool_call", { description: "[deprecated in v3.0.0 — use gateway.aeoess.com REST API] Process a tool call through the gateway enforcement boundary.", inputSchema: z.object({
+server.registerTool("gateway_process_tool_call", { description: "[deprecated in v3.0.0, use the gateway.aeoess.com REST API] Process a tool call through the gateway enforcement boundary.", inputSchema: z.object({
         agentId: z.string(),
         tool: z.string(),
         params: z.record(z.string(), z.unknown()).optional(),
@@ -3339,7 +3339,7 @@ server.registerTool("gateway_process_tool_call", { description: "[deprecated in 
         context: z.string().optional(),
       }) }, async (_args) => movedToGateway("gateway_process_tool_call"));
 
-server.registerTool("gateway_approve", { description: "[deprecated in v3.0.0 — use gateway.aeoess.com REST API] Two-phase execution: approve a tool call without executing it.", inputSchema: z.object({
+server.registerTool("gateway_approve", { description: "[deprecated in v3.0.0, use the gateway.aeoess.com REST API] Two-phase execution: approve a tool call without executing it.", inputSchema: z.object({
         agentId: z.string(),
         tool: z.string(),
         params: z.record(z.string(), z.unknown()).optional(),
@@ -3347,7 +3347,7 @@ server.registerTool("gateway_approve", { description: "[deprecated in v3.0.0 —
         context: z.string().optional(),
       }) }, async (_args) => movedToGateway("gateway_approve"));
 
-server.registerTool("gateway_stats", { description: "[deprecated in v3.0.0 — use gateway.aeoess.com REST API] Get gateway statistics.", inputSchema: z.object({}) }, async (_args) => movedToGateway("gateway_stats"));
+server.registerTool("gateway_stats", { description: "[deprecated in v3.0.0, use the gateway.aeoess.com REST API] Get gateway statistics.", inputSchema: z.object({}) }, async (_args) => movedToGateway("gateway_stats"));
 
 // ═══════════════════════════════════════
 // Intent Network (Agent-Mediated Matching)
@@ -3413,7 +3413,7 @@ server.registerTool("search_matches", { description: "Search the Intent Network 
         }
       });
 
-server.registerTool("get_digest", { description: "Get a personalized digest from the Intent Network: relevant matches, pending intro requests, and incoming intros. The killer feature — 'what matters to me right now?'", inputSchema: z.object({}) }, async () => {
+server.registerTool("get_digest", { description: "Get a personalized digest from the Intent Network: relevant matches, pending intro requests, and incoming intros. It answers 'what matters to me right now?'", inputSchema: z.object({}) }, async () => {
         const agentId = state.agentId || 'anonymous';
         try {
           const digest = await intentApiFetch(`/api/digest/${agentId}`);
@@ -3853,11 +3853,11 @@ server.registerTool("register_data_source", { description: "Register a data sour
         return { content: [{ type: "text", text: `✅ Data source registered.\n\nSource Receipt ID: ${receipt.sourceReceiptId}\nDescriptor: ${p.contentDescriptor}\nAllowed purposes: ${p.allowedPurposes.join(', ')}\nCompensation: ${p.compensationType}${p.compensationAmount ? ' $' + p.compensationAmount : ''}\nMax accesses: ${p.maxAccessCount || 'unlimited'}\nDerivative policy: ${p.derivativePolicy}` }] };
       });
 
-server.registerTool("create_data_enforcement_gate", { description: "[deprecated in v3.0.0 — use gateway.aeoess.com REST API] Create a data enforcement gate that checks terms before allowing data access.", inputSchema: z.object({
+server.registerTool("create_data_enforcement_gate", { description: "[deprecated in v3.0.0, use the gateway.aeoess.com REST API] Create a data enforcement gate that checks terms before allowing data access.", inputSchema: z.object({
         mode: z.enum(["enforce", "audit", "off"]).default("enforce").describe("Enforcement mode"),
       }) }, async (_args) => movedToGateway("create_data_enforcement_gate"));
 
-server.registerTool("query_contributions", { description: "[deprecated in v3.0.0 — use gateway.aeoess.com REST API] Query the data contribution ledger.", inputSchema: z.object({
+server.registerTool("query_contributions", { description: "[deprecated in v3.0.0, use the gateway.aeoess.com REST API] Query the data contribution ledger.", inputSchema: z.object({
         sourceReceiptId: z.string().optional(),
         agentId: z.string().optional(),
         principalId: z.string().optional(),
@@ -3865,7 +3865,7 @@ server.registerTool("query_contributions", { description: "[deprecated in v3.0.0
         minAccessCount: z.number().optional(),
       }) }, async (_args) => movedToGateway("query_contributions"));
 
-server.registerTool("generate_settlement", { description: "[deprecated in v3.0.0 — use gateway.aeoess.com REST API] Generate a Merkle-committed, signed settlement record for a period.", inputSchema: z.object({
+server.registerTool("generate_settlement", { description: "[deprecated in v3.0.0, use the gateway.aeoess.com REST API] Generate a Merkle-committed, signed settlement record for a period.", inputSchema: z.object({
         startDate: z.string().describe("Period start (YYYY-MM-DD)"),
         endDate: z.string().describe("Period end (YYYY-MM-DD)"),
         periodLabel: z.string().describe("Label (e.g. '2026-Q1', '2026-03')"),
@@ -3889,7 +3889,7 @@ server.registerTool("generate_settlement", { description: "[deprecated in v3.0.0
 // Data Lifecycle Governance Tools
 // ═══════════════════════════════════════
 
-server.registerTool("create_derivation_receipt", { description: "Create a signed derivation receipt tracking how data was transformed. Multi-hop lineage with break markers.", inputSchema: z.object({
+server.registerTool("create_derivation_receipt", { description: "Create a signed derivation receipt tracking how data was transformed. Multi-hop lineage with break markers. Replaces any receipt already stored under the same derivativeId.", inputSchema: z.object({
         derivativeId: z.string().describe("Unique ID for the derivative artifact"),
         derivativeType: z.string().describe("Type: rag_chunk, embedding, summary, model_weights, synthetic_derivative, etc."),
         parentArtifacts: z.array(z.object({
@@ -3937,7 +3937,7 @@ server.registerTool("evaluate_revocation_impact", { description: "Evaluate what 
         return { content: [{ type: "text", text: `⚠️ Revocation Impact: ${p.sourceId}\n\nObligation ID: ${result.obligationId}\nTotal affected: ${result.totalAffected}\n\nAffected artifacts:\n${lines.join('\n') || '  (none)'}` }] };
       });
 
-server.registerTool("create_decision_lineage_receipt", { description: "Create a Decision Lineage Receipt — traces which data sources influenced a decision. Right-to-explanation primitive.", inputSchema: z.object({
+server.registerTool("create_decision_lineage_receipt", { description: "Create a Decision Lineage Receipt that traces which data sources influenced a decision. Right-to-explanation primitive.", inputSchema: z.object({
         decisionArtifactId: z.string(),
         decisionType: z.string().describe("E.g. loan_approval, content_moderation, risk_assessment"),
         contributingSources: z.array(z.object({
@@ -4032,7 +4032,7 @@ server.registerTool("compute_governance_taint", { description: "Compute governan
         return { content: [{ type: "text", text: `🏷️ Governance Taint: ${p.artifactId}\n\nLevel: ${taint.taintLevel}\nSources: [${taint.sources.join(', ')}]\nReason: ${taint.reason}\nClearable: ${taint.clearable}\n${taint.clearCondition ? `Condition: ${taint.clearCondition}` : ''}` }] };
       });
 
-server.registerTool("file_data_dispute", { description: "File a dispute against a data artifact. The protocol records disputes — resolution is external.", inputSchema: z.object({
+server.registerTool("file_data_dispute", { description: "Create a signed dispute record against a data artifact without submitting, storing, or sending it. Resolution happens outside the protocol.", inputSchema: z.object({
         artifactId: z.string(),
         disputeType: z.enum(["unauthorized_access", "terms_violation", "compensation_dispute", "revocation_dispute", "lineage_dispute"]),
         filedBy: z.string(),
@@ -4042,7 +4042,7 @@ server.registerTool("file_data_dispute", { description: "File a dispute against 
           ...p,
           privateKey: state.privateKey!,
         });
-        return { content: [{ type: "text", text: `⚖️ Dispute filed.\n\nID: ${dispute.disputeId}\nType: ${dispute.disputeType}\nStatus: ${dispute.status}\nArtifact: ${dispute.artifactId}\nEvidence: ${dispute.evidence.length} items` }] };
+        return { content: [{ type: "text", text: `⚖️ Dispute record created (not submitted, stored, or sent).\n\nID: ${dispute.disputeId}\nType: ${dispute.disputeType}\nStatus: ${dispute.status}\nArtifact: ${dispute.artifactId}\nEvidence: ${dispute.evidence.length} items` }] };
       });
 
 server.registerTool("check_combination_permitted", { description: "Check if combining data from two sources is permitted. Prevents prohibited inferences (HIPAA, COPPA, GDPR Art 9).", inputSchema: z.object({
@@ -4063,7 +4063,7 @@ server.registerTool("check_combination_permitted", { description: "Check if comb
         return { content: [{ type: "text", text: `${result.permitted ? '✅ PERMITTED' : '❌ BLOCKED'} — Combination check\n\n${result.violations.length ? result.violations.join('\n') : 'No violations'}` }] };
       });
 
-server.registerTool("create_access_snapshot", { description: "Create an immutable access snapshot — freezes terms, jurisdiction, and constraints at moment of access. Anti-rug-pull.", inputSchema: z.object({
+server.registerTool("create_access_snapshot", { description: "Create a signed access snapshot that pins terms, jurisdiction, and constraints at the moment of access, so a later change to the source terms does not alter what the snapshot records.", inputSchema: z.object({
         accessReceiptId: z.string(),
         sourceId: z.string(),
         termsVersion: z.string(),
@@ -4203,7 +4203,7 @@ server.registerTool("generate_aps_txt", { description: "Generate a signed aps.tx
         return { content: [{ type: "text", text: `📄 aps.txt Generated\n\nDomain: ${doc.domain}\nDID: ${doc.publisher_did}\nMCP: ${doc.mcp_endpoint || 'none'}\n\nServe at: ${p.domain}/.well-known/aps.txt\n\n${serialized}` }] };
       });
 
-server.registerTool("verify_aps_txt", { description: "Verify a signed aps.txt file — checks signature and DID consistency.", inputSchema: z.object({
+server.registerTool("verify_aps_txt", { description: "Verify a signed aps.txt file by checking its signature and DID consistency.", inputSchema: z.object({
         content: z.string().describe("aps.txt JSON content"),
         publicKey: z.string().describe("Publisher's Ed25519 public key (hex)"),
       }) }, async (p) => {
@@ -4261,7 +4261,7 @@ server.registerTool("governance_360", { description: "Execute the full governanc
         return { content: [{ type: "text", text: `🔄 Governance 360 Loop\n\n${result.summary}\n\n${result.receipt ? `Receipt ID: ${result.receipt.receiptId}\nAccessed: ${result.receipt.accessed_at}` : 'No receipt (ungoverned content)'}` }] };
       });
 
-server.registerTool("create_access_receipt", { description: "Create a signed access receipt — cryptographic proof that your agent consumed content under specific terms. The receipt captures terms and revocation policy at access time.", inputSchema: z.object({
+server.registerTool("create_access_receipt", { description: "Create a signed receipt recording the supplied content reference and terms. The receipt captures the governance block's terms and revocation policy at access time. This tool marks governance_verified true without checking the block, so verify it first with verify_governance_block.", inputSchema: z.object({
         agentPublicKey: z.string().describe("Your agent's Ed25519 public key (hex)"),
         agentPrivateKey: z.string().describe("Your agent's Ed25519 private key (hex)"),
         block: z.string().describe("Governance block JSON string"),
@@ -4282,7 +4282,7 @@ server.registerTool("create_access_receipt", { description: "Create a signed acc
 // Rome-Complete: Charter & Institutional Governance
 // ═══════════════════════════════════════
 
-server.registerTool("create_charter", { description: "Create a new institutional charter — the constitutional root of an organization. Defines offices, amendment rules, dissolution policy.", inputSchema: z.object({
+server.registerTool("create_charter", { description: "Create a new institutional charter, the constitutional root of an organization. Defines offices, amendment rules, and dissolution policy.", inputSchema: z.object({
         name: z.string().describe("Institution name"),
         offices: z.array(z.object({
           officeId: z.string(),
@@ -4407,7 +4407,7 @@ server.registerTool("propose_amendment", { description: "Propose an amendment to
         return { content: [{ type: "text", text: `✅ Amendment proposed\n\namendment_id: ${amendment.amendmentId}\ncharter_id: ${amendment.charterId}\nfrom_version: ${amendment.fromVersion}\nto_version: ${amendment.toVersion}\nsignatures: ${amendment.signatures.length}\nstatus: ${amendment.status}\n\nNext: sign_amendment to collect signatures, then verify_amendment.` }] };
       });
 
-server.registerTool("sign_amendment", { description: "Add a signature to a proposed amendment. The SDK derives the preimage and signs it; MCP never sees or builds the signed bytes. Session state is not an authoritative registry: amendments live only in this process, are lost on restart, and carry no external trust.", inputSchema: z.object({
+server.registerTool("sign_amendment", { description: "Add a signature to a proposed amendment. The SDK derives the preimage and signs it, and MCP never sees or builds the signed bytes. Session state is not an authoritative registry: amendments live only in this process, are lost on restart, and carry no external trust.", inputSchema: z.object({
         amendment_id: z.string(),
         signer_private_key: z.string(),
         signer_public_key: z.string(),
@@ -4473,7 +4473,7 @@ server.registerTool("add_approval_signature", { description: "Add a signature to
         return { content: [{ type: "text", text: `✅ Signature added\n\nRequest: ${updated.requestId}\nTotal signatures: ${updated.signatures.length}\nStatus: ${updated.status}` }] };
       });
 
-server.registerTool("create_hybrid_timestamp", { description: "Create a gateway-issued hybrid timestamp (Consilium Q1: HLC + NTP uncertainty).", inputSchema: z.object({
+server.registerTool("create_hybrid_timestamp", { description: "Create a hybrid timestamp using the local clock and a supplied uncertainty bound.", inputSchema: z.object({
         gateway_id: z.string().describe("Gateway issuing the timestamp"),
         drift_ms: z.number().default(50).describe("NTP drift bound in milliseconds"),
       }) }, async (args) => {
@@ -4489,7 +4489,7 @@ server.registerTool("compare_timestamps", { description: "Compare two hybrid tim
         return { content: [{ type: "text", text: `⏱️ Temporal Ordering: ${order}\n\nA: logical=${args.a.logicalTime} wall=[${args.a.wallClockEarliest},${args.a.wallClockLatest}] gw=${args.a.gatewayId}\nB: logical=${args.b.logicalTime} wall=[${args.b.wallClockEarliest},${args.b.wallClockLatest}] gw=${args.b.gatewayId}` }] };
       });
 
-server.registerTool("validate_temporal_rights", { description: "Validate a TemporalRights object — check validity window, grace period, supersession, challenge window.", inputSchema: z.object({
+server.registerTool("validate_temporal_rights", { description: "Validate a TemporalRights object by checking its validity window, grace period, supersession, and challenge window.", inputSchema: z.object({
         valid_from: z.string().describe("ISO datetime"),
         valid_until: z.string().describe("ISO datetime"),
         challenge_until: z.string().optional(),
@@ -4505,7 +4505,7 @@ server.registerTool("validate_temporal_rights", { description: "Validate a Tempo
         return { content: [{ type: "text", text: `⏱️ Temporal Validation\n\nValid: ${result.valid}\nIn grace: ${result.inGracePeriod}\nSuperseded: ${result.superseded}\nChallenge open: ${result.challengeWindowOpen}\nEffective: ${result.effective}${result.errors.length ? '\n\nIssues:\n' + result.errors.join('\n') : ''}` }] };
       });
 
-server.registerTool("create_reserve_attestation", { description: "Create a signed reserve attestation proving a delegation has actual funds (GPT #15).", inputSchema: z.object({
+server.registerTool("create_reserve_attestation", { description: "Sign a reserve attestation using the supplied amount and assurance class. The tool does not check that the funds exist.", inputSchema: z.object({
         delegation_id: z.string(),
         assurance_class: z.enum(['unbacked', 'self_attested', 'gateway_attested', 'escrow_backed', 'externally_attested']),
         amount: z.number(),
@@ -4528,7 +4528,7 @@ server.registerTool("create_reserve_attestation", { description: "Create a signe
         return { content: [{ type: "text", text: `💰 Reserve Attestation Created\n\nID: ${att.attestationId}\nDelegation: ${att.delegationId}\nAssurance: ${att.assuranceClass}\nAmount: ${att.attestedAmount.value} ${att.attestedAmount.currency}\nExpires: ${att.expiresAt}` }] };
       });
 
-server.registerTool("vouch_reputation", { description: "Create a vouched reputation for cross-gateway portability (WS-3). Signed summary — no receipt history exposed.", inputSchema: z.object({
+server.registerTool("vouch_reputation", { description: "Create a signed reputation summary that another gateway can import. Receipt history is not included.", inputSchema: z.object({
         agent_id: z.string(),
         tier: z.number(),
         diversity_score: z.number(),
@@ -4584,7 +4584,7 @@ server.registerTool("compute_action_ref", { description: "Compute content-addres
         return { content: [{ type: "text", text: `🔗 action_ref: ${ref}\n\nAgent: ${args.agent_id}\nType: ${args.action_type}\nScope: ${args.scope_required.join(', ')}\nTimestamp: ${intent.createdAt}` }] };
       });
 
-server.registerTool("is_evidence_fresh", { description: "Check whether typed attestation evidence is still fresh. rotating: ttl required; snapshot: maxAge optional; static: always fresh.", inputSchema: z.object({
+server.registerTool("is_evidence_fresh", { description: "Check whether typed attestation evidence is still fresh. Rotating evidence requires a ttl, snapshot evidence takes an optional maxAge, and static evidence is always fresh.", inputSchema: z.object({
         type: z.enum(['rotating', 'snapshot', 'static']),
         valid_at: z.string().describe("ISO 8601 timestamp evidence was produced"),
         ttl: z.number().optional().describe("Seconds (required for rotating)"),
@@ -4659,7 +4659,7 @@ server.registerTool("verify_rotation_chain", { description: "Verify all rotation
         return { content: [{ type: "text", text: `${valid ? '✅' : '❌'} Rotation chain valid: ${valid}\n\nEntries verified: ${doc.rotationLog.length}\nDID: ${doc.id || 'unknown'}` }] };
       });
 
-server.registerTool("is_key_active", { description: "Check if a public key is currently authorized for active operations in a DID document. SDK convenience check; gateway enforcement is authoritative.", inputSchema: z.object({
+server.registerTool("is_key_active", { description: "Check if a public key is currently authorized for active operations in a DID document. SDK convenience check. Gateway enforcement is authoritative.", inputSchema: z.object({
         did_document: z.any().describe("RotatableDIDDocument JSON object"),
         public_key: z.string().describe("Hex-encoded Ed25519 public key to check"),
       }) }, async (args) => {
@@ -4785,7 +4785,7 @@ server.registerTool("aps_create_provisional", { description: "Commitment boundar
         }
       });
 
-server.registerTool("aps_promote_statement", { description: "Commitment boundary: promote a provisional statement to binding by attaching a PromotionEvent that satisfies the PromotionPolicy (m-of-n principal signatures). dead_man_elapsed cannot promote — it auto-withdraws via the dead-man path.", inputSchema: z.object({
+server.registerTool("aps_promote_statement", { description: "Commitment boundary: promote a provisional statement to binding by attaching a PromotionEvent that satisfies the PromotionPolicy (m-of-n principal signatures). dead_man_elapsed cannot promote, because the dead-man path auto-withdraws the statement.", inputSchema: z.object({
         statement: z.any().describe("ProvisionalStatement from aps_create_provisional"),
         promotion_event: z.any().describe("PromotionEvent with kind, promoted_at, promoter, promoter_signature, policy_reference"),
         policy: z.any().describe("PromotionPolicy {id, required_signers, threshold, max_time_to_promote}"),
@@ -4916,7 +4916,7 @@ server.registerTool("aps_project_attribution", { description: "Extract a single-
         }
       });
 
-server.registerTool("aps_verify_attribution_projection", { description: "Verify a single-axis AttributionProjection under the issuer's Ed25519 public key. Returns {valid: true} or {valid: false, reason: 'INVALID_AXIS_TAG'|'MERKLE_MISMATCH'|'SIGNATURE_INVALID'|'MALFORMED'}. Verification is purely local — no other axes required.", inputSchema: z.object({
+server.registerTool("aps_verify_attribution_projection", { description: "Verify a single-axis AttributionProjection under the issuer's Ed25519 public key. Returns {valid: true} or {valid: false, reason: 'INVALID_AXIS_TAG'|'MERKLE_MISMATCH'|'SIGNATURE_INVALID'|'MALFORMED'}. Verification is purely local and needs no other axes.", inputSchema: z.object({
         projection: z.any().describe("An AttributionProjection (from aps_project_attribution)"),
         issuer_public_key: z.string().describe("Issuer Ed25519 public key hex"),
       }) }, async (args) => {
@@ -4940,7 +4940,7 @@ server.registerTool("aps_verify_attribution_primitive", { description: "End-to-e
         }
       });
 
-server.registerTool("aps_check_projection_consistency", { description: "Cross-projection consistency check (§2.4): given two projections, confirm they originate from the same signed receipt. Returns {same_receipt: true} or {same_receipt: false, reason: 'DIFFERENT_ACTIONS'|'DIFFERENT_RECEIPTS'|'DIFFERENT_SIGNATURES'|'METADATA_MISMATCH'}.", inputSchema: z.object({
+server.registerTool("aps_check_projection_consistency", { description: "Cross-projection consistency check: given two projections, confirm they originate from the same signed receipt. Returns {same_receipt: true} or {same_receipt: false, reason: 'DIFFERENT_ACTIONS'|'DIFFERENT_RECEIPTS'|'DIFFERENT_SIGNATURES'|'METADATA_MISMATCH'}.", inputSchema: z.object({
         projection_a: z.any().describe("First AttributionProjection"),
         projection_b: z.any().describe("Second AttributionProjection"),
       }) }, async (args) => {
@@ -4978,7 +4978,7 @@ server.registerTool("aps_compute_attribution_action_ref", { description: "Derive
 // then hand the resulting axis entries to aps_construct_attribution_primitive.
 // ═══════════════════════════════════════
 
-server.registerTool("aps_compute_data_axis_weights", { description: "Compute the D-axis fractional weight vector from a list of AccessReceipt records with role, timestamp, and content length. Returns canonical DataAxisEntry[] with 6-digit decimal contribution_weight strings that sum to ~1.0 and feed directly into aps_construct_attribution_primitive. Empty input → empty array; all-zero raw weights → error. Weights = role × recency_decay × length_weight, normalized per spec BUILD-B §'The D-axis formula'. Parameter names match the SDK: `sources`, `action_timestamp`, optional `profile`.", inputSchema: z.object({
+server.registerTool("aps_compute_data_axis_weights", { description: "Compute the D-axis fractional weight vector from a list of AccessReceipt records with role, timestamp, and content length. Returns canonical DataAxisEntry[] with 6-digit decimal contribution_weight strings that sum to ~1.0 and feed directly into aps_construct_attribution_primitive. Empty input returns an empty array, and all-zero raw weights return an error. Weights = role × recency_decay × length_weight, then normalized. Parameter names match the SDK: `sources`, `action_timestamp`, optional `profile`.", inputSchema: z.object({
         sources: z.array(z.object({
           source_did: z.string(),
           access_receipt_hash: z.string(),
@@ -5002,7 +5002,7 @@ server.registerTool("aps_compute_data_axis_weights", { description: "Compute the
         }
       });
 
-server.registerTool("aps_compute_compute_axis_weights", { description: "Compute the C-axis fractional weight vector from a list of inference billing records (prompt_tokens, completion_tokens). Returns canonical ComputeAxisEntry[] with 6-digit decimal compute_share strings that sum to ~1.0 and feed directly into aps_construct_attribution_primitive. Weights = prompt_tokens + completion_tokens × COMPLETION_MULTIPLIER (default 3.0), normalized per spec BUILD-B §'The C-axis formula'. Parameter names match the SDK: `providers`, optional `profile`.", inputSchema: z.object({
+server.registerTool("aps_compute_compute_axis_weights", { description: "Compute the C-axis fractional weight vector from a list of inference billing records (prompt_tokens, completion_tokens). Returns canonical ComputeAxisEntry[] with 6-digit decimal compute_share strings that sum to ~1.0 and feed directly into aps_construct_attribution_primitive. Weights = prompt_tokens + completion_tokens × COMPLETION_MULTIPLIER (default 3.0), then normalized. Parameter names match the SDK: `providers`, optional `profile`.", inputSchema: z.object({
         providers: z.array(z.object({
           provider_did: z.string(),
           hardware_attestation_hash: z.string(),
@@ -5038,7 +5038,7 @@ const SettlementPeriodSchema = z.object({
   period_id: z.string().describe("Gateway-scoped period identifier"),
 });
 
-server.registerTool("aps_aggregate_settlement", { description: "Aggregate a batch of Attribution Primitives over a half-open settlement period [t0, t1) into a signed SettlementRecord. Each axis (D, P, G, C) produces a per-contributor total with a balanced-Merkle commitment. Residual buckets pool sub-threshold contributors per Build A §4.1. Output is a fully signed record ready for third-party verification. Spec: BUILD-C-SETTLEMENT-PIPELINE.md.", inputSchema: z.object({
+server.registerTool("aps_aggregate_settlement", { description: "Aggregate a batch of Attribution Primitives over a half-open settlement period [t0, t1) into a signed SettlementRecord. Each axis (D, P, G, C) produces a per-contributor total with a balanced-Merkle commitment. Residual buckets pool sub-threshold contributors. Output is a fully signed record ready for third-party verification.", inputSchema: z.object({
         receipts: z.array(z.any()).describe("Array of AttributionPrimitives to aggregate"),
         period: SettlementPeriodSchema,
         gateway_did: z.string().describe("Gateway DID that signs the record"),
@@ -5326,7 +5326,7 @@ server.registerTool("aps_capability_mint_receipt", { description: "v0.1 capabili
         }
       });
 
-server.registerTool("aps_capability_sign_effect", { description: "v0.1 capability-token sink effect receipt (M4). Sink consumes the token preimage from the gateway's M3 (rejecting on nullifier replay), executes the action, and signs an EffectReceipt binding the consumed token to the result. The (M1, M3, M4) tuple is the full attestation record. Search keywords: capability token, effect receipt, M4, sink attestation.", inputSchema: z.object({
+server.registerTool("aps_capability_sign_effect", { description: "v0.1 capability-token sink effect receipt (M4). The sink verifies the gateway's M3, consumes the token preimage (rejecting a replayed nullifier), and signs an EffectReceipt binding the consumed token to the action result the caller supplies. This tool does not execute the action. The (M1, M3, M4) tuple is the full attestation record. Search keywords: capability token, effect receipt, M4, sink attestation.", inputSchema: z.object({
         challenge: z.any().describe("Original SinkChallenge from M1 (for binding verification)"),
         challenge_receipt: z.any().describe("ChallengeReceipt from M3"),
         effect: z.object({
