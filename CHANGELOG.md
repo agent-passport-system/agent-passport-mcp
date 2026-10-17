@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased (next major)
+
+Several tools gave answers that the SDK 8 code behind them could not back. This release makes each of them either do the real check or refuse. The version in package.json is not changed yet.
+
+### Breaking
+
+- **`create_access_receipt` requires `content` and `publisherPublicKey`.** The tool used to sign `governance_verified: true` without checking anything. It now runs `verifyGovernanceBlock` against the governed content and the publisher's key, and refuses without signing when the block does not verify. Migration: pass the content the block covers as `content` and the publisher's Ed25519 public key (hex) as `publisherPublicKey`. A call that omits either now fails input validation. The tool still returns a text summary, not the signed receipt.
+- **`revoke_delegation` takes a delegation record, not a session id.** In SDK 8 `revokeDelegation` and `cascadeRevoke` always throw, so the old tool failed on every call. The tool now issues a signed AuthorityRevocationV1 for an AuthorityDelegationV1 and returns it as JSON. Migration: pass the AuthorityDelegationV1 as `delegation` (a JSON string or object), and a non-empty `reason_code`, which is now required. `delegation_id` is optional and is checked against `delegation.delegation_id` when both are given. The optional `reason` text is written to the record's `detail` member. `cascade` is still accepted and has no effect, because a chain verifier that holds the ancestor record rejects every descendant chain. Legacy `del_...` records from `create_delegation` and `sub_delegate` are refused, because SDK 8 has no revocation for them.
+- **`create_principal` requires `replace=true` to replace a principal.** A second call used to discard the current principal's private key and fleet without warning. It is now refused while a principal exists in the process. Migration: pass `replace=true` when replacing is intended. The tool now returns the full private key once on a local (stdio) server, redacted in remote mode, instead of its first 16 characters.
+- **`review_promotion` is unavailable.** SDK 8 replaced `createPromotionReview` with a function that always throws. The tool now returns `isError` on every call without calling the SDK, creates no review, and leaves the session promotion history unchanged. Migration: there is no replacement in this server. The input schema is unchanged, so existing callers get the explanation instead of a validation error.
+- **`rotate_key` refuses a non-empty `delegation_ids_to_revoke`.** No delegation revocation is wired into rotation, so the old tool rotated the key and reported every requested revocation as an error. It now refuses before generating any key, revokes nothing and schedules nothing. Migration: call `rotate_key` without the list, or with an empty list, and revoke each AuthorityDelegationV1 separately with `revoke_delegation`. The response no longer has a `Revocations` line.
+
+### Tool annotations
+
+Every tool now carries a `title` and the four MCP hints (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) in `tools/list`, from one table in `src/toolAnnotations.ts`. A tool registered without an entry fails the build. Clients that gate calls on these hints may now ask for confirmation before tools marked destructive, such as `revoke_delegation` and `create_principal`. The README tool tables are generated from `tools/list` by `scripts/generate-readme-tools.mjs`, and the test suite fails when they are stale.
+
 ## 7.0.0 (2026-10-14)
 
 The server now runs on `agent-passport-system ^8.0.0`, up from `^6.0.0`. Every 6.x install resolved SDK 6.x and missed the SDK 7.x and 8.0.0 verification changes. The major version moves for the same reason as 6.0.0: a tool answer changes on the same input, not because this server's own API changed shape.
