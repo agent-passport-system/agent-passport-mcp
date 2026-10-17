@@ -4261,20 +4261,26 @@ server.registerTool("governance_360", { description: "Execute the full governanc
         return { content: [{ type: "text", text: `🔄 Governance 360 Loop\n\n${result.summary}\n\n${result.receipt ? `Receipt ID: ${result.receipt.receiptId}\nAccessed: ${result.receipt.accessed_at}` : 'No receipt (ungoverned content)'}` }] };
       });
 
-server.registerTool("create_access_receipt", { description: "Create a signed receipt recording the supplied content reference and terms. The receipt captures the governance block's terms and revocation policy at access time. This tool marks governance_verified true without checking the block, so verify it first with verify_governance_block.", inputSchema: z.object({
+server.registerTool("create_access_receipt", { description: "Create a signed receipt recording the supplied content reference and terms, after verifying the governance block against the content and the publisher's key. If the block does not verify, the tool refuses and signs nothing. The receipt captures the block's terms and revocation policy at access time.", inputSchema: z.object({
         agentPublicKey: z.string().describe("Your agent's Ed25519 public key (hex)"),
         agentPrivateKey: z.string().describe("Your agent's Ed25519 private key (hex)"),
         block: z.string().describe("Governance block JSON string"),
+        content: z.string().describe("Content the governance block covers, used to verify its content hash"),
+        publisherPublicKey: z.string().describe("Publisher's Ed25519 public key (hex), used to verify the block signature"),
         sourceUrl: z.string().describe("URL where content was accessed"),
         intendedUsage: z.string().describe("How you intend to use this content"),
       }) }, async (p) => {
         const parsed = JSON.parse(p.block);
+        const check = verifyGovernanceBlock(parsed, p.content, p.publisherPublicKey);
+        if (!check.valid) {
+          return { isError: true, content: [{ type: "text", text: `Access receipt refused: the governance block did not verify, so no receipt was signed.\n\nSignature: ${check.signatureValid ? 'valid' : 'invalid'}\nContent hash: ${check.contentHashValid ? 'valid' : 'invalid'}\nDID consistent: ${check.didConsistent ? 'yes' : 'no'}${check.errors.length > 0 ? '\n\nErrors:\n' + check.errors.join('\n') : ''}` }] };
+        }
         const receipt = createAccessReceipt({
           agentPublicKey: p.agentPublicKey, agentPrivateKey: p.agentPrivateKey,
           block: parsed, sourceUrl: p.sourceUrl, intendedUsage: p.intendedUsage,
           governanceVerified: true,
         });
-        return { content: [{ type: "text", text: `📝 Access Receipt Created\n\nID: ${receipt.receiptId}\nAgent: ${receipt.agent_did}\nPublisher: ${receipt.publisher_did}\nUsage: ${receipt.intended_usage}\nTerms: training=${receipt.terms_at_access.training || 'N/A'}\nRevocation: cached=${receipt.revocation_policy_at_access.cached_copy}` }] };
+        return { content: [{ type: "text", text: `📝 Access Receipt Created\n\nID: ${receipt.receiptId}\nAgent: ${receipt.agent_did}\nPublisher: ${receipt.publisher_did}\nUsage: ${receipt.intended_usage}\nGovernance block: verified\nTerms: training=${receipt.terms_at_access.training || 'N/A'}\nRevocation: cached=${receipt.revocation_policy_at_access.cached_copy}` }] };
       });
 
 

@@ -238,7 +238,7 @@ Every tool carries MCP annotations. **Read-only** means the tool writes no file,
 | `check_purpose_permitted` | Check Purpose Permitted | yes |  |  | Check if a purpose is permitted under source terms. |
 | `check_retention_expired` | Check Retention Expired | yes |  |  | Check if data retention has expired based on TTL policy. |
 | `check_usage_permitted` | Check Usage Permitted | yes |  |  | Check if a specific usage type is permitted under a governance block's terms. |
-| `create_access_receipt` | Create Access Receipt | yes |  |  | Create a signed receipt recording the supplied content reference and terms. |
+| `create_access_receipt` | Create Access Receipt | yes |  |  | Create a signed receipt recording the supplied content reference and terms, after verifying the governance block against the content and the publisher's key. |
 | `create_access_snapshot` | Create Access Snapshot | yes |  |  | Create a signed access snapshot that pins terms, jurisdiction, and constraints at the moment of access, so a later change to the source terms does not alter what the snapshot re... |
 | `create_data_enforcement_gate` | Create Data Enforcement Gate (Deprecated) | yes |  |  | [deprecated in v3.0.0, use the gateway.aeoess.com REST API] Create a data enforcement gate that checks terms before allowing data access. |
 | `create_decision_lineage_receipt` | Create Decision Lineage Receipt | yes |  |  | Create a Decision Lineage Receipt that traces which data sources influenced a decision. |
