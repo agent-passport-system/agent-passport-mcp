@@ -17,6 +17,7 @@
   "scripts": {
     "build": "npx tsc && chmod 755 build/bin.js build/index.js build/setup.js && node scripts/generate-manifest.mjs",
     "test": "npm run build && node --test tests/*.test.mjs build/__tests__/*.test.js",
+    "docs:tools": "node scripts/generate-readme-tools.mjs",
     "watch": "tsc --watch",
     "inspector": "npx @modelcontextprotocol/inspector build/index.js",
     "prepublishOnly": "npm run build && npm test",

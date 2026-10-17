@@ -222,6 +222,8 @@ import type {
 } from "agent-passport-system";
 
 import { toolCount } from "./toolManifest.js";
+import { annotationsFor } from "./toolAnnotations.js";
+export { TOOL_ANNOTATIONS } from "./toolAnnotations.js";
 
 // ═══════════════════════════════════════
 // Capability Token v0.1 (reference implementation)
@@ -815,6 +817,14 @@ export const REGISTERED_TOOL_NAMES: string[] = [];
 const _origTool: any = server.registerTool.bind(server);
 (server as any).registerTool = function(name: string, ...rest: any[]) {
   REGISTERED_TOOL_NAMES.push(name);
+  // Attach the MCP title and hint annotations from the central table. Looked up
+  // before the profile filter so a tool missing from the table fails the build
+  // under every profile, not only under the one the build happened to run with.
+  const { title, ...hints } = annotationsFor(name);
+  const config = rest[0];
+  if (config && typeof config === 'object') {
+    rest[0] = { ...config, title: config.title ?? title, annotations: { title, ...hints, ...config.annotations } };
+  }
   if (name !== 'list_profiles' && activeProfile !== 'full' && profileFilter && !profileFilter.has(name)) {
     return; // filtered out by profile
   }
@@ -840,7 +850,7 @@ const _origTool: any = server.registerTool.bind(server);
 // Agents with scoped delegations can query which tools match their scopes.
 // Tools mapped to '*' are always available (meta/utility tools).
 
-const TOOL_SCOPE_MAP: Record<string, string> = {
+export const TOOL_SCOPE_MAP: Record<string, string> = {
   // Meta tools — always available
   'list_profiles': '*',
   'list_tools_for_scope': '*',
