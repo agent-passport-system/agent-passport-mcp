@@ -148,8 +148,10 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotationEntry> = {
   generate_settlement: ro("Generate Settlement (Deprecated)"),
 
   // ── Principal identity (session) ──
-  // create_principal replaces the session principal and fleet. The previous
-  // principal's private key was only ever returned truncated, so it is lost.
+  // create_principal refuses while a session principal exists unless replace=true.
+  // With replace=true it discards the previous principal's private key and fleet
+  // from this process, so it stays destructive and is not idempotent (each call
+  // mints a new keypair).
   create_principal: rw("Create Principal Identity", { destructive: true, idempotent: false, openWorld: false }),
   endorse_agent: rw("Endorse Agent", ADD),
   verify_endorsement: ro("Verify Endorsement"),

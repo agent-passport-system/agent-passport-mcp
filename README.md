@@ -122,7 +122,7 @@ Every tool carries MCP annotations. **Read-only** means the tool writes no file,
 | Tool | Title | Read-only | Destructive | Network | Description |
 |------|-------|-----------|-------------|---------|-------------|
 | `create_disclosure` | Create Principal Disclosure | yes |  |  | Create a selective disclosure of principal identity. |
-| `create_principal` | Create Principal Identity |  | yes |  | Create a principal identity (human or org behind agents). |
+| `create_principal` | Create Principal Identity |  | yes |  | Create a principal identity (human or org behind agents) with its own Ed25519 keypair, held in this process as the session principal with a new fleet. |
 | `endorse_agent` | Endorse Agent |  |  |  | Endorse an agent as a principal. |
 | `get_fleet_status` | Get Fleet Status | yes |  |  | Get status of all agents endorsed by the current principal. |
 | `revoke_endorsement` | Revoke Endorsement |  | yes |  | Revoke a principal's endorsement of an agent. |

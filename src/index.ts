@@ -2997,13 +2997,23 @@ server.registerTool("complete_action", { description: "[deprecated in v3.0.0, us
 // PRINCIPAL IDENTITY TOOLS
 // ═══════════════════════════════════════
 
-server.registerTool("create_principal", { description: "Create a principal identity (human or org behind agents). Gets its own Ed25519 keypair.", inputSchema: z.object({
+server.registerTool("create_principal", { description: "Create a principal identity (human or org behind agents) with its own Ed25519 keypair, held in this process as the session principal with a new fleet. Returns the full public key, and the full private key once on a local (stdio) server. On a remote server (MCP_TRANSPORT=sse or MCP_REMOTE=1) the private key is redacted, as in generate_keys. If a principal already exists in this process the call is refused unless replace=true, because replacing discards the current principal's private key and fleet from this process.", inputSchema: z.object({
         display_name: z.string().describe("Human-readable name (e.g. 'Tima', 'Acme Corp')"),
         domain: z.string().optional().describe("Verifiable domain (e.g. 'aeoess.com')"),
         jurisdiction: z.string().optional().describe("Legal jurisdiction (e.g. 'US', 'EU')"),
         contact_channel: z.string().optional().describe("Contact method (e.g. 'telegram:@aeoess')"),
         disclosure_level: z.enum(["public", "verified-only", "minimal"]).default("public").describe("How much identity to reveal"),
+        replace: z.boolean().default(false).describe("Replace an existing principal. Discards the current principal's private key and fleet from this process, so save the key first."),
       }) }, async (args) => {
+        if (state.principal && !args.replace) {
+          return {
+            content: [{
+              type: "text" as const,
+              text: `Refused: a principal already exists in this process (${state.principal.principalId}, ${state.principal.displayName}). Replacing it discards the current principal's private key and fleet from this process, and they cannot be recovered from the server afterwards. Pass replace=true to replace it.`,
+            }],
+            isError: true,
+          };
+        }
         const { principal, keyPair } = createPrincipalIdentity({
           displayName: args.display_name,
           domain: args.domain,
@@ -3016,17 +3026,20 @@ server.registerTool("create_principal", { description: "Create a principal ident
         state.principalPrivateKey = keyPair.privateKey;
         state.fleet = createFleet(principal);
 
+        const isRemote = process.env.MCP_TRANSPORT === 'sse' || process.env.MCP_REMOTE === '1'
         return {
           content: [{
             type: "text" as const,
             text: JSON.stringify({
               principalId: principal.principalId,
               displayName: principal.displayName,
-              publicKey: principal.publicKey.slice(0, 16) + '...',
-              privateKey: keyPair.privateKey.slice(0, 16) + '... (store securely)',
+              publicKey: principal.publicKey,
+              privateKey: isRemote ? '[REDACTED — use local MCP for key generation]' : keyPair.privateKey,
               domain: principal.domain,
               disclosureLevel: principal.disclosureLevel,
-              note: 'Principal created. Use endorse_agent to sign off on agents.',
+              note: isRemote
+                ? 'Principal created. WARNING: Private key redacted because this is a remote MCP server. Create principals locally via stdio transport if you need the key. Use endorse_agent to sign off on agents.'
+                : 'Principal created. This is the only time the private key is returned: store it securely. Use endorse_agent to sign off on agents. WARNING: Private keys should not be transmitted over remote transports.',
             }, null, 2),
           }],
         };
