@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased (next major)
+## 8.0.0 (2026-10-17)
 
-Several tools gave answers that the SDK 8 code behind them could not back. This release makes each of them either do the real check or refuse. The version in package.json is not changed yet.
+Several tools gave answers that the SDK 8 code behind them could not back. This release makes each of them either do the real check or refuse.
 
 ### Breaking
 
