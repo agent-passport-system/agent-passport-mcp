@@ -61,7 +61,7 @@ import {
   // Reputation-Gated Authority (Layer 9)
   computeEffectiveScore, createScopedReputation,
   resolveAuthorityTier, checkTierForIntent, advisoryTierPrecheck,
-  createPromotionReview, validatePromotionReview,
+  validatePromotionReview,
   triggerDemotion, updateReputationFromResult,
   DEFAULT_TIERS, DEFAULT_PROMOTION_REQUIREMENTS,
   meetsPromotionRequirements,
@@ -2227,7 +2227,7 @@ const LEGACY_DELEGATION_REFUSAL =
   '(record_type aps:authority-delegation:v1, delegation_id sha256:...). Pass the AuthorityDelegationV1 ' +
   'record as `delegation`.';
 
-server.registerTool("revoke_delegation", { description: "[OPERATOR] Revoke an AuthorityDelegationV1 (draft-03 section 3.5.1 direct revocation). Signs an AuthorityRevocationV1 for the delegation with this server's key, verifies it against the delegation, records it in this process's in-memory revocation store, and returns the signed record as JSON for the caller to publish or verify. Only the delegation's issuer may revoke, so the delegation must verify under this server's public key. The record's revoker is the delegation's issuer and its verification_method is the delegation's own. Descendants are not given separate records: a chain verifier that holds this record rejects every chain containing the delegation as an ancestor. The store is in-memory for this process only, is lost on restart, and is not consulted by verify_delegation, which checks legacy delegations. Legacy delegations from create_delegation (del_...) are refused, because SDK 8 has no revocation for them. A repeat call for an already revoked delegation returns the earlier record unchanged.", inputSchema: z.object({
+server.registerTool("revoke_delegation", { description: "[OPERATOR] Issue a signed revocation record (AuthorityRevocationV1, draft-03 section 3.5.1 direct revocation) for an AuthorityDelegationV1. Signs the record with this server's key, verifies it against the delegation, records it in this process's in-memory revocation store, and returns the signed record as JSON for the caller to publish or verify. Only the delegation's issuer may revoke, so the delegation must verify under this server's public key. The record's revoker is the delegation's issuer and its verification_method is the delegation's own. Descendants are not given separate records: a chain verifier that holds this record rejects every chain containing the delegation as an ancestor. The store is in-memory for this process only, is lost on restart, and is not consulted by verify_delegation, which checks legacy delegations. Legacy delegation records from create_delegation and sub_delegate (del_...) are refused, because SDK 8 has no revocation for them. A repeat call for an already revoked delegation returns the earlier record unchanged.", inputSchema: z.object({
         delegation: z.union([z.string(), z.record(z.string(), z.unknown())]).optional().describe("The AuthorityDelegationV1 to revoke (record_type aps:authority-delegation:v1), as a JSON string or object. Required for a revocation to be issued."),
         delegation_id: z.string().optional().describe("Optional. Checked against delegation.delegation_id when both are given. A legacy session id (del_...) is refused with an explanation."),
         reason_code: z.string().min(1).describe("Machine-readable reason, written to the record's reason_code. Any non-empty string is accepted, because the draft fixes no grammar for it."),
@@ -3277,7 +3277,12 @@ server.registerTool("check_tier", { description: "Check if an agent's earned tie
         };
       });
 
-server.registerTool("review_promotion", { description: "Create a signed promotion review for another agent. Reviewer must have 'earned' origin and tier above target. Returns signed review artifact.", inputSchema: z.object({
+// createPromotionReview is a throw-only stub in agent-passport-system 8, so this
+// tool cannot produce a review. It answers at once and never calls the SDK, the
+// same way the movedToGateway stubs keep a removed tool discoverable. The input
+// schema is unchanged so existing callers get this explanation instead of a
+// validation error.
+server.registerTool("review_promotion", { description: "Unavailable with SDK 8. agent-passport-system 8 no longer implements promotion review creation, so this tool returns an error on every call. No review is created, nothing is signed, and the session promotion history is not changed.", inputSchema: z.object({
         agentId: z.string().describe("Agent being reviewed for promotion"),
         principalId: z.string().describe("Principal who delegated to the agent"),
         scope: z.string().describe("Scope of the promotion"),
@@ -3285,71 +3290,17 @@ server.registerTool("review_promotion", { description: "Create a signed promotio
         verdict: z.enum(['promoted', 'denied']).describe("Promotion verdict"),
         reasoning: z.string().describe("Explanation for the verdict"),
         probationDays: z.number().optional().describe("Probation period in days (default: 7)"),
-      }) }, async ({ agentId, principalId, scope, toTier, verdict, reasoning, probationDays }) => {
-        if (!state.privateKey || !state.agentId) {
-          return { content: [{ type: "text" as const, text: 'Identity required. Call identify or set AGENT_KEY first.' }], isError: true };
-        }
-
-        // Get target agent's current reputation
-        const key = `${principalId}:${agentId}:${scope}`;
-        let rep = state.reputations.get(key);
-        if (!rep) {
-          rep = createScopedReputation(principalId, agentId, scope);
-          state.reputations.set(key, rep);
-        }
-
-        const effectiveScore = computeEffectiveScore(rep.mu, rep.sigma);
-        const currentTier = resolveTier(effectiveScore);
-
-        // Get reviewer's tier (from their own reputation in same scope)
-        const reviewerKey = `${principalId}:${state.agentId}:${scope}`;
-        let reviewerRep = state.reputations.get(reviewerKey);
-        if (!reviewerRep) {
-          reviewerRep = createScopedReputation(principalId, state.agentId!, scope);
-          state.reputations.set(reviewerKey, reviewerRep);
-        }
-        const reviewerScore = computeEffectiveScore(reviewerRep.mu, reviewerRep.sigma);
-        const reviewerTier = resolveTier(reviewerScore);
-
-        // Build evidence portfolio from receipt count (simplified — real impl would aggregate from task history)
-        const evidence: EvidencePortfolio = {
-          scope,
-          totalReceipts: rep.receiptCount,
-          classCounts: { trivial: 0, standard: rep.receiptCount, complex: 0, critical: 0 },
-          distinctReviewers: 1,
-          distinctTaskTypes: 1,
-          failureRate: 0,
-          interventionRate: 0,
-        };
-
-        try {
-          const review = createPromotionReview({
-            agentId, principalId, scope,
-            fromTier: currentTier.tier,
-            toTier,
-            reviewerId: state.agentId!,
-            reviewerTier: reviewerTier.tier,
-            reviewerOrigin: reviewerTier.origin,
-            evidence,
-            effectiveScore,
-            verdict,
-            reasoning,
-            reviewerPrivateKey: state.privateKey,
-            probationDays,
-          });
-
-          state.promotionHistory.push({ review, appliedAt: new Date().toISOString() });
-
-          return {
-            content: [{
-              type: "text" as const,
-              text: JSON.stringify(review, null, 2),
-            }],
-          };
-        } catch (err: any) {
-          return { content: [{ type: "text" as const, text: safeError("Promotion review failed", err) }], isError: true };
-        }
-      });
+      }) }, async (_args) => ({
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({
+            error: "review_promotion is unavailable with SDK 8. No review is created.",
+            reason: "agent-passport-system 8 replaced createPromotionReview with a function that always throws, so this server cannot create or sign a promotion review.",
+            unavailable_since: "agent-passport-system 8.0.0",
+          }),
+        }],
+        isError: true,
+      }));
 
 server.registerTool("update_reputation", { description: "Update an agent's reputation after a task result. Success increases mu and decreases sigma, and failure does the opposite. Higher evidence class = larger effect.", inputSchema: z.object({
         agentId: z.string().describe("Agent whose reputation to update"),
@@ -4345,7 +4296,7 @@ server.registerTool("governance_360", { description: "Execute the full governanc
         return { content: [{ type: "text", text: `🔄 Governance 360 Loop\n\n${result.summary}\n\n${result.receipt ? `Receipt ID: ${result.receipt.receiptId}\nAccessed: ${result.receipt.accessed_at}` : 'No receipt (ungoverned content)'}` }] };
       });
 
-server.registerTool("create_access_receipt", { description: "Create a signed receipt recording the supplied content reference and terms, after verifying the governance block against the content and the publisher's key. If the block does not verify, the tool refuses and signs nothing. The receipt captures the block's terms and revocation policy at access time.", inputSchema: z.object({
+server.registerTool("create_access_receipt", { description: "Create a signed receipt recording the supplied content reference and terms, after verifying the governance block against the content and the publisher's key. If the block does not verify, the tool refuses and signs nothing. The receipt captures the block's terms and revocation policy at access time. The tool signs the receipt with agentPrivateKey but returns only a text summary (receipt ID, agent DID, publisher DID, intended usage, governance block status, training term, cached-copy revocation policy). The full signed receipt, including its signature, is not returned. A verified block is not permission to perform intendedUsage, and the receipt is not proof that access happened.", inputSchema: z.object({
         agentPublicKey: z.string().describe("Your agent's Ed25519 public key (hex)"),
         agentPrivateKey: z.string().describe("Your agent's Ed25519 private key (hex)"),
         block: z.string().describe("Governance block JSON string"),
@@ -4710,13 +4661,16 @@ server.registerTool("classify_evidence_quality", { description: "Classify attest
 // Key Rotation — DID Document + Identity Continuity
 // ═══════════════════════════════════════
 
-server.registerTool("rotate_key", { description: "Rotate an agent's Ed25519 key. Planned mode: configurable overlap (default 24h). Emergency mode: immediate old-key retirement. Returns updated DID document, rotation state, and revocation results.", inputSchema: z.object({
+server.registerTool("rotate_key", { description: "Rotate an agent's Ed25519 key. Planned mode: configurable overlap (default 24h). Emergency mode: immediate old-key retirement. Builds a rotated DID document for the old key, generates a new key pair, and returns a text summary with the rotation state, the first 16 hex characters of the old and new public keys, the full new private key, the DID, the rotation log entry count, and the activation time. The DID document itself is not returned, and nothing is persisted. Delegation revocation is not integrated in this server, so a non-empty delegation_ids_to_revoke is refused before any key is generated.", inputSchema: z.object({
         mode: z.enum(['planned', 'emergency']),
         old_private_key: z.string().describe("Hex-encoded private key being rotated FROM"),
         agent_name: z.string().optional().describe("Agent name for the passport (default: current session)"),
         activation_delay_hours: z.number().optional().describe("Planned mode overlap hours (default: 24)"),
-        delegation_ids_to_revoke: z.array(z.string()).optional().describe("Delegation IDs to cascade-revoke during rotation"),
+        delegation_ids_to_revoke: z.array(z.string()).optional().describe("Must be empty or absent. Delegation revocation is not integrated in this server, so a non-empty list is refused and nothing is rotated."),
       }) }, async (args) => {
+        if (args.delegation_ids_to_revoke && args.delegation_ids_to_revoke.length > 0) {
+          return { isError: true, content: [{ type: "text" as const, text: `Key rotation refused: delegation revocation is not integrated in this server. No key was rotated, no delegation was revoked, and no background completion is scheduled. Call rotate_key without delegation_ids_to_revoke, then revoke each AuthorityDelegationV1 with revoke_delegation.` }] };
+        }
         const { generateKeyPair } = await import("agent-passport-system");
         const oldPublicKey = (await import("agent-passport-system")).publicKeyFromPrivate(args.old_private_key);
         const newKeyPair = generateKeyPair();
@@ -4732,10 +4686,10 @@ server.registerTool("rotate_key", { description: "Rotate an agent's Ed25519 key.
         const delayMs = args.activation_delay_hours != null ? args.activation_delay_hours * 3600000 : undefined;
         const result = rotateAndInvalidate(
           doc, args.old_private_key, newKeyPair,
-          args.delegation_ids_to_revoke || [],
+          [],
           { mode: args.mode, activationDelayMs: delayMs },
         );
-        return { content: [{ type: "text", text: `🔑 Key Rotation (${args.mode})\n\nState: ${result.rotationState}\nOld key: ${oldPublicKey.slice(0, 16)}...\nNew key: ${newKeyPair.publicKey.slice(0, 16)}...\nNew private key: ${newKeyPair.privateKey}\nDID: ${result.didDocument.id}\nRotation log entries: ${result.didDocument.rotationLog.length}\nRevocations: ${result.revocationResults.length} (${result.revocationResults.filter(r => !r.error).length} succeeded)\n\nActivation time: ${result.didDocument.pendingRotation?.activationTime || 'immediate'}` }] };
+        return { content: [{ type: "text", text: `🔑 Key Rotation (${args.mode})\n\nState: ${result.rotationState}\nOld key: ${oldPublicKey.slice(0, 16)}...\nNew key: ${newKeyPair.publicKey.slice(0, 16)}...\nNew private key: ${newKeyPair.privateKey}\nDID: ${result.didDocument.id}\nRotation log entries: ${result.didDocument.rotationLog.length}\n\nActivation time: ${result.didDocument.pendingRotation?.activationTime || 'immediate'}` }] };
       });
 
 server.registerTool("verify_rotation_chain", { description: "Verify all rotation signatures in a DID document's rotation log. Returns true if the full chain is cryptographically valid.", inputSchema: z.object({

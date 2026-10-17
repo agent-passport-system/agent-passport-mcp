@@ -112,7 +112,7 @@ Every tool carries MCP annotations. **Read-only** means the tool writes no file,
 | `aps_record_owner_confirmation` | Record Owner Confirmation | yes |  |  | Escalation boundary: owner signs an OwnerConfirmation authorizing a flagged action. |
 | `create_delegation` | Create Delegation |  |  |  | [OPERATOR] Create a scoped delegation from one agent to another. |
 | `create_v2_delegation` | Create v2 Delegation |  |  |  | Create a v2 delegation with versioning, mandatory sunset, and PolicyContext binding. |
-| `revoke_delegation` | Revoke Delegation |  | yes |  | [OPERATOR] Revoke an AuthorityDelegationV1 (draft-03 section 3.5.1 direct revocation). |
+| `revoke_delegation` | Revoke Delegation |  | yes |  | [OPERATOR] Issue a signed revocation record (AuthorityRevocationV1, draft-03 section 3.5.1 direct revocation) for an AuthorityDelegationV1. |
 | `sub_delegate` | Sub-Delegate Authority |  |  |  | Sub-delegate authority to another agent (must be within your delegation scope and depth). |
 | `supersede_v2_delegation` | Supersede v2 Delegation |  | yes |  | Supersede a v2 delegation. |
 | `verify_delegation` | Verify Delegation | yes |  |  | Check a delegation's signature and its stated window. |
@@ -136,7 +136,7 @@ Every tool carries MCP annotations. **Read-only** means the tool writes no file,
 | `check_tier` | Check Tier Permits Action | yes |  |  | Check if an agent's earned tier permits an action at a given autonomy level and spend amount. |
 | `get_promotion_history` | Get Promotion History | yes |  |  | Get the promotion review history for this session. |
 | `resolve_authority` | Resolve Authority Tier | yes |  |  | Compute effective reputation score and authority tier for an agent in a given scope. |
-| `review_promotion` | Review Agent Promotion |  |  |  | Create a signed promotion review for another agent. |
+| `review_promotion` | Review Agent Promotion (Unavailable) | yes |  |  | Unavailable with SDK 8. |
 | `update_reputation` | Update Agent Reputation |  |  |  | Update an agent's reputation after a task result. |
 | `vouch_reputation` | Vouch Reputation | yes |  |  | Create a signed reputation summary that another gateway can import. |
 
@@ -339,7 +339,7 @@ Local files the server reads or writes, all under the user's home directory unle
 | `APS_NULLIFIER_DIR`, default `~/.agent-passport-nullifiers/` | `aps_capability_sign_effect` | SHA-256 hashes identifying consumed tokens, with redemption timestamps. Raw preimages are not stored. Written on redemption |
 | Claude Desktop and Cursor MCP config files | the `setup` command, not a tool | adds the `agent-passport` server entry |
 
-Keys are never written to disk by the server. `identify` holds the agent key pair in process memory for the session, and `AGENT_KEY` / `AGENT_PRIVATE_KEY` supply it from the environment. `generate_keys`, `issue_passport` and `rotate_key` return private keys in the tool response, and `generate_keys` and `issue_passport` redact them when the server runs in remote mode. `create_principal` keeps the principal key in memory and returns only its first 16 characters. Many signing tools take a private key as an argument and use it for that call only. Session state (delegations, endorsements, charters, intents) lives in memory and is lost on restart.
+Keys are never written to disk by the server. `identify` holds the agent key pair in process memory for the session, and `AGENT_KEY` / `AGENT_PRIVATE_KEY` supply it from the environment. `generate_keys`, `issue_passport` and `rotate_key` return private keys in the tool response, and `generate_keys` and `issue_passport` redact them when the server runs in remote mode. `create_principal` keeps the principal key in memory and returns the full private key once on a local (stdio) server, redacted in remote mode as in `generate_keys`. It refuses to replace an existing principal unless called with `replace=true`. Many signing tools take a private key as an argument and use it for that call only. Session state (delegations, endorsements, charters, intents) lives in memory and is lost on restart.
 
 ## Architecture
 

@@ -87,7 +87,7 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotationEntry> = {
   compute_action_ref: ro("Compute Action Reference"),
   is_evidence_fresh: ro("Check Evidence Freshness"),
   classify_evidence_quality: ro("Classify Evidence Quality"),
-  rotate_key: ro("Rotate Agent Key"), // builds a rotated DID document and returns it; persists nothing, and no revocation callback is wired so delegation_ids_to_revoke only report errors
+  rotate_key: ro("Rotate Agent Key"), // builds a rotated DID document and returns a summary; persists nothing, and refuses a non-empty delegation_ids_to_revoke before generating a key
   verify_rotation_chain: ro("Verify Key Rotation Chain"),
   is_key_active: ro("Check Key Is Active"),
 
@@ -165,7 +165,7 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotationEntry> = {
   // so the write has no observable effect.
   resolve_authority: ro("Resolve Authority Tier"),
   check_tier: ro("Check Tier Permits Action"),
-  review_promotion: rw("Review Agent Promotion", ADD), // session promotion history
+  review_promotion: ro("Review Agent Promotion (Unavailable)"), // stub: returns isError without calling the SDK, writes nothing
   update_reputation: rw("Update Agent Reputation", ADD),
   get_promotion_history: ro("Get Promotion History"),
 

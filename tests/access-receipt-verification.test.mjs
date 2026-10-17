@@ -10,7 +10,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { generateKeyPair, embedGovernance } from "agent-passport-system";
+import { generateKeyPair, embedGovernance, createDID } from "agent-passport-system";
 
 const SERVER = fileURLToPath(new URL("../build/index.js", import.meta.url));
 
@@ -74,12 +74,29 @@ const baseArgs = {
 
 const text = (r) => r.content.map((c) => c.text).join("\n");
 
+// The tool returns a text summary, not the signed receipt, so the signature
+// cannot be checked from the response. What the summary does carry is checked
+// against values the test derives independently: the receipt ID format the SDK
+// assigns at signing time, the agent DID derived from the agent key, the
+// publisher DID from the block, and the terms the block was signed with.
+const field = (body, name) => {
+  const m = body.match(new RegExp(`^${name}: (.*)$`, "m"));
+  assert.ok(m, `summary has no ${name} line:\n${body}`);
+  return m[1];
+};
+
 test("create_access_receipt signs when the block verifies", async () => {
   await withServer(async (call) => {
     const r = await call("create_access_receipt", baseArgs);
     assert.notEqual(r.isError, true, text(r));
-    assert.match(text(r), /Access Receipt Created/);
-    assert.match(text(r), /Governance block: verified/);
+    const body = text(r);
+    assert.match(body, /Access Receipt Created/);
+    assert.match(field(body, "ID"), /^gar_[0-9a-f]{24}$/);
+    assert.equal(field(body, "Agent"), createDID(agent.publicKey));
+    assert.equal(field(body, "Publisher"), block.source_did);
+    assert.equal(field(body, "Usage"), "inference");
+    assert.equal(field(body, "Governance block"), "verified");
+    assert.match(field(body, "Terms"), /^training=prohibited$/);
   });
 });
 
