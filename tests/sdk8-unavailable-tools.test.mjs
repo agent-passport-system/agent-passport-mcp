@@ -14,11 +14,12 @@ import { generateKeyPair } from "agent-passport-system";
 
 const SERVER = fileURLToPath(new URL("../build/index.js", import.meta.url));
 
-async function withServer(fn) {
+async function withServer(fn, extraEnv = {}) {
   const home = mkdtempSync(join(tmpdir(), "aps-mcp-sdk8-"));
   const env = { ...process.env, HOME: home, APS_PROFILE: "full" };
   delete env.MCP_REMOTE;
   delete env.MCP_TRANSPORT;
+  Object.assign(env, extraEnv);
   const child = spawn(process.execPath, [SERVER], { env, stdio: ["pipe", "pipe", "pipe"] });
   let buf = "";
   const pending = new Map();
@@ -113,4 +114,14 @@ test("rotate_key with an empty delegation list still rotates", async () => {
     assert.notEqual(m[1], agent.privateKey);
     assert.match(body, /^Rotation log entries: \d+$/m);
   });
+});
+
+test("rotate_key redacts the new private key on a remote server", async () => {
+  await withServer(async (call) => {
+    const r = await call("rotate_key", { mode: "planned", old_private_key: agent.privateKey });
+    assert.notEqual(r.isError, true, text(r));
+    const body = text(r);
+    assert.match(body, /^New private key: \[REDACTED/m);
+    assert.doesNotMatch(body, /^New private key: [0-9a-f]{64}$/m);
+  }, { MCP_REMOTE: "1" });
 });

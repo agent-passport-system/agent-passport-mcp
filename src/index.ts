@@ -4661,7 +4661,7 @@ server.registerTool("classify_evidence_quality", { description: "Classify attest
 // Key Rotation — DID Document + Identity Continuity
 // ═══════════════════════════════════════
 
-server.registerTool("rotate_key", { description: "Rotate an agent's Ed25519 key. Planned mode: configurable overlap (default 24h). Emergency mode: immediate old-key retirement. Builds a rotated DID document for the old key, generates a new key pair, and returns a text summary with the rotation state, the first 16 hex characters of the old and new public keys, the full new private key, the DID, the rotation log entry count, and the activation time. The DID document itself is not returned, and nothing is persisted. Delegation revocation is not integrated in this server, so a non-empty delegation_ids_to_revoke is refused before any key is generated.", inputSchema: z.object({
+server.registerTool("rotate_key", { description: "Rotate an agent's Ed25519 key. Planned mode: configurable overlap (default 24h). Emergency mode: immediate old-key retirement. Builds a rotated DID document for the old key, generates a new key pair, and returns a text summary with the rotation state, the first 16 hex characters of the old and new public keys, the full new private key (redacted on a remote server, MCP_TRANSPORT=sse or MCP_REMOTE=1, as in generate_keys), the DID, the rotation log entry count, and the activation time. The DID document itself is not returned, and nothing is persisted. Delegation revocation is not integrated in this server, so a non-empty delegation_ids_to_revoke is refused before any key is generated.", inputSchema: z.object({
         mode: z.enum(['planned', 'emergency']),
         old_private_key: z.string().describe("Hex-encoded private key being rotated FROM"),
         agent_name: z.string().optional().describe("Agent name for the passport (default: current session)"),
@@ -4689,7 +4689,7 @@ server.registerTool("rotate_key", { description: "Rotate an agent's Ed25519 key.
           [],
           { mode: args.mode, activationDelayMs: delayMs },
         );
-        return { content: [{ type: "text", text: `🔑 Key Rotation (${args.mode})\n\nState: ${result.rotationState}\nOld key: ${oldPublicKey.slice(0, 16)}...\nNew key: ${newKeyPair.publicKey.slice(0, 16)}...\nNew private key: ${newKeyPair.privateKey}\nDID: ${result.didDocument.id}\nRotation log entries: ${result.didDocument.rotationLog.length}\n\nActivation time: ${result.didDocument.pendingRotation?.activationTime || 'immediate'}` }] };
+        return { content: [{ type: "text", text: `🔑 Key Rotation (${args.mode})\n\nState: ${result.rotationState}\nOld key: ${oldPublicKey.slice(0, 16)}...\nNew key: ${newKeyPair.publicKey.slice(0, 16)}...\nNew private key: ${(process.env.MCP_TRANSPORT === 'sse' || process.env.MCP_REMOTE === '1') ? '[REDACTED — use local MCP for key generation]' : newKeyPair.privateKey}\nDID: ${result.didDocument.id}\nRotation log entries: ${result.didDocument.rotationLog.length}\n\nActivation time: ${result.didDocument.pendingRotation?.activationTime || 'immediate'}` }] };
       });
 
 server.registerTool("verify_rotation_chain", { description: "Verify all rotation signatures in a DID document's rotation log. Returns true if the full chain is cryptographically valid.", inputSchema: z.object({
