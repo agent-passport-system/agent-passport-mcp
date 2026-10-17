@@ -17,6 +17,7 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { randomBytes } from "node:crypto";
 
 import {
   // Identity + Crypto
@@ -33,8 +34,12 @@ import {
   completeTask, verifyCompletion,
   createTaskUnit, getTaskStatus, validateTaskUnit,
   // Delegation (Layer 1)
-  createDelegation, verifyDelegation, revokeDelegation,
-  subDelegate, cascadeRevoke, clearStores,
+  createDelegation, verifyDelegation,
+  subDelegate, clearStores,
+  // revokeDelegation and cascadeRevoke are throw-only stubs in agent-passport-system 8.
+  // revoke_delegation issues a draft-03 section 3.5.1 AuthorityRevocationV1 instead.
+  issueAuthorityRevocation, recordAuthorityRevocation, InMemoryAuthorityRevocationStore,
+  parseAuthorityDelegationJson, verifyAuthorityDelegationSignature,
   // Agora (Layer 4)
   createAgoraMessage, createFeed, appendToFeed,
   getThread, getByTopic, getTopics,
@@ -201,6 +206,7 @@ import type {
   CharterCore, CharterAmendment, Office, MultiClassThresholdPolicy,
   ApprovalPolicy, ApprovalRequest as ApprovalReq,
   GatewayImportPolicy,
+  AuthorityDelegationV1, AuthorityRevocationV1,
 } from "agent-passport-system";
 
 // ═══════════════════════════════════════
@@ -2208,41 +2214,106 @@ server.registerTool("verify_delegation", { description: "Check a delegation's si
         };
       });
 
-server.registerTool("revoke_delegation", { description: "[OPERATOR] Revoke a delegation. Optionally cascade to all sub-delegations.", inputSchema: z.object({
-        delegation_id: z.string().describe("Delegation ID to revoke"),
-        reason: z.string().describe("Why the delegation is being revoked"),
-        cascade: z.boolean().default(true).describe("Also revoke all sub-delegations"),
+// AuthorityRevocationV1 records revoke_delegation has issued and verified, keyed by the
+// revoked delegation_id. Process memory only: lost on restart, invisible to any other
+// process. First verified revocation for a delegation wins (INV-5, revocation is
+// irreversible), so a repeated call returns the record already held.
+const authorityRevocationStore = new InMemoryAuthorityRevocationStore();
+
+const LEGACY_DELEGATION_REFUSAL =
+  'Refused: this is a legacy delegation (create_delegation / sub_delegate, id del_...). ' +
+  'agent-passport-system 8 has no revocation for that pre-draft record: revokeDelegation and cascadeRevoke ' +
+  'are throw-only stubs, and an AuthorityRevocationV1 can only name an AuthorityDelegationV1 ' +
+  '(record_type aps:authority-delegation:v1, delegation_id sha256:...). Pass the AuthorityDelegationV1 ' +
+  'record as `delegation`.';
+
+server.registerTool("revoke_delegation", { description: "[OPERATOR] Revoke an AuthorityDelegationV1 (draft-03 section 3.5.1 direct revocation). Signs an AuthorityRevocationV1 for the delegation with this server's key, verifies it against the delegation, records it in this process's in-memory revocation store, and returns the signed record as JSON for the caller to publish or verify. Only the delegation's issuer may revoke, so the delegation must verify under this server's public key. The record's revoker is the delegation's issuer and its verification_method is the delegation's own. Descendants are not given separate records: a chain verifier that holds this record rejects every chain containing the delegation as an ancestor. The store is in-memory for this process only, is lost on restart, and is not consulted by verify_delegation, which checks legacy delegations. Legacy delegations from create_delegation (del_...) are refused, because SDK 8 has no revocation for them. A repeat call for an already revoked delegation returns the earlier record unchanged.", inputSchema: z.object({
+        delegation: z.union([z.string(), z.record(z.string(), z.unknown())]).optional().describe("The AuthorityDelegationV1 to revoke (record_type aps:authority-delegation:v1), as a JSON string or object. Required for a revocation to be issued."),
+        delegation_id: z.string().optional().describe("Optional. Checked against delegation.delegation_id when both are given. A legacy session id (del_...) is refused with an explanation."),
+        reason_code: z.string().min(1).describe("Machine-readable reason, written to the record's reason_code. Any non-empty string is accepted, because the draft fixes no grammar for it."),
+        reason: z.string().optional().describe("Optional free-text detail, written to the record's detail member."),
+        cascade: z.boolean().default(true).describe("Kept for compatibility, no effect on the output. Descendants are invalidated at chain verification through this ancestor record whatever the value, and no per-descendant records are issued."),
       }) }, async (args) => {
         recordBehavior('revoke_delegation');
         const keyErr = requireKey();
         if (keyErr) return { content: [{ type: "text" as const, text: keyErr }], isError: true };
+        const fail = (text: string) => ({ content: [{ type: "text" as const, text }], isError: true });
 
-        if (args.cascade) {
-          const result = cascadeRevoke(args.delegation_id, state.agentKey!, args.reason, state.privateKey!);
-          return {
-            content: [{
-              type: "text" as const,
-              text: JSON.stringify({
-                revokedCount: result.totalRevoked,
-                rootRevocation: { delegationId: result.rootRevocation.delegationId, revokedAt: result.rootRevocation.revokedAt },
-                cascadedCount: result.cascadedRevocations.length,
-                reason: args.reason,
-              }, null, 2),
-            }],
-          };
-        } else {
-          const revocation = revokeDelegation(args.delegation_id, state.agentKey!, args.reason, state.privateKey!);
-          return {
-            content: [{
-              type: "text" as const,
-              text: JSON.stringify({
-                delegationId: args.delegation_id,
-                revokedAt: revocation.revokedAt,
-                reason: args.reason,
-              }, null, 2),
-            }],
-          };
+        if (args.delegation === undefined) {
+          if (args.delegation_id && state.delegations.has(args.delegation_id)) return fail(LEGACY_DELEGATION_REFUSAL);
+          return fail('Refused: pass the AuthorityDelegationV1 record to revoke as `delegation`. This server keeps no AuthorityDelegationV1 records of its own to look up by id.');
         }
+
+        let target: AuthorityDelegationV1;
+        try {
+          target = typeof args.delegation === 'string'
+            ? parseAuthorityDelegationJson(args.delegation)
+            : args.delegation as unknown as AuthorityDelegationV1;
+        } catch (err) {
+          return fail(safeError('Refused: delegation is not a parseable AuthorityDelegationV1', err));
+        }
+        const raw = target as unknown as Record<string, unknown>;
+        if (raw && typeof raw === 'object' && 'delegationId' in raw && !('record_type' in raw)) {
+          return fail(LEGACY_DELEGATION_REFUSAL);
+        }
+        if (args.delegation_id !== undefined && args.delegation_id !== target.delegation_id) {
+          return fail(`Refused: delegation_id ${args.delegation_id} does not match the delegation's own delegation_id.`);
+        }
+
+        // Draft section 3.5: only the delegation's issuer may revoke it. The evidence this
+        // server has that its key is the issuer's key is that the delegation itself verifies
+        // under that key. Without it, nothing is signed.
+        let signedByServerKey = false;
+        try { signedByServerKey = verifyAuthorityDelegationSignature(target, state.agentKey!); } catch { signedByServerKey = false; }
+        if (!signedByServerKey) {
+          return fail("Refused: the delegation's signature does not verify under this server's public key, so this server has no evidence that it holds the issuer's key. Only the issuer may revoke (draft section 3.5). Run the server with the issuer's key.");
+        }
+
+        // Key resolution for verifying the new record: the issuer's verification method
+        // resolves to this server's key, on the evidence checked just above, and nothing else
+        // resolves.
+        const resolveVerificationKey = (issuer: string, method: string) =>
+          issuer === target.issuer && method === target.verification_method
+            ? state.agentKey!
+            : { outcome: 'not_found' as const };
+
+        let candidate: AuthorityRevocationV1;
+        try {
+          candidate = issueAuthorityRevocation(target, {
+            now: new Date().toISOString(),
+            revoker: target.issuer,
+            verification_method: target.verification_method,
+            reason_code: args.reason_code,
+            ...(args.reason !== undefined ? { detail: args.reason } : {}),
+            nonce: randomBytes(16).toString('hex'),
+          }, state.privateKey!);
+        } catch (err) {
+          return fail(safeError('Revocation refused', err));
+        }
+
+        const result = recordAuthorityRevocation(authorityRevocationStore, target, candidate, { resolveVerificationKey });
+        if (!result.recorded) {
+          return fail(JSON.stringify({
+            error: 'The minted revocation did not verify against the delegation, so it was not recorded or returned.',
+            verification: result.verification,
+          }, null, 2));
+        }
+
+        return {
+          content: [{
+            type: "text" as const,
+            text: JSON.stringify({
+              revocation: result.stored,
+              inserted: result.inserted,
+              ...(result.inserted ? {} : {
+                note: 'This delegation was already revoked in this process. The earlier record stands (first verified revocation wins, revocation is irreversible) and the record minted by this call was discarded.',
+              }),
+              verification: result.verification.state,
+              descendants: 'No per-descendant records. A chain verifier holding this record rejects any chain that contains this delegation as an ancestor.',
+              store: 'In-memory, this server process only. Lost on restart and not visible to other processes. Publish the record for others to verify it.',
+            }, null, 2),
+          }],
+        };
       });
 
 server.registerTool("sub_delegate", { description: "Sub-delegate authority to another agent (must be within your delegation scope and depth).", inputSchema: z.object({

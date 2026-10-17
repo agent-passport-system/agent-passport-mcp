@@ -112,7 +112,7 @@ Every tool carries MCP annotations. **Read-only** means the tool writes no file,
 | `aps_record_owner_confirmation` | Record Owner Confirmation | yes |  |  | Escalation boundary: owner signs an OwnerConfirmation authorizing a flagged action. |
 | `create_delegation` | Create Delegation |  |  |  | [OPERATOR] Create a scoped delegation from one agent to another. |
 | `create_v2_delegation` | Create v2 Delegation |  |  |  | Create a v2 delegation with versioning, mandatory sunset, and PolicyContext binding. |
-| `revoke_delegation` | Revoke Delegation |  | yes |  | [OPERATOR] Revoke a delegation. |
+| `revoke_delegation` | Revoke Delegation |  | yes |  | [OPERATOR] Revoke an AuthorityDelegationV1 (draft-03 section 3.5.1 direct revocation). |
 | `sub_delegate` | Sub-Delegate Authority |  |  |  | Sub-delegate authority to another agent (must be within your delegation scope and depth). |
 | `supersede_v2_delegation` | Supersede v2 Delegation |  | yes |  | Supersede a v2 delegation. |
 | `verify_delegation` | Verify Delegation | yes |  |  | Check a delegation's signature and its stated window. |
