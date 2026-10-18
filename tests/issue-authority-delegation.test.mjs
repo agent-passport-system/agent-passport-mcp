@@ -16,11 +16,12 @@ import { generateKeyPair, issueAuthorityDelegation, verifyAuthorityDelegation } 
 
 const SERVER = fileURLToPath(new URL("../build/index.js", import.meta.url));
 
-async function withServer(keys, fn) {
+async function withServer(keys, fn, extraEnv = {}) {
   const home = mkdtempSync(join(tmpdir(), "aps-mcp-issue-"));
-  const env = { ...process.env, HOME: home, APS_PROFILE: "full", AGENT_KEY: keys.publicKey, AGENT_PRIVATE_KEY: keys.privateKey };
+  const env = { ...process.env, HOME: home, APS_PROFILE: "full", AGENT_KEY: keys.publicKey, AGENT_PRIVATE_KEY: keys.privateKey, ...extraEnv };
   delete env.MCP_REMOTE;
   delete env.MCP_TRANSPORT;
+  Object.assign(env, extraEnv);
   const child = spawn(process.execPath, [SERVER], { env, stdio: ["pipe", "pipe", "pipe"] });
   let buf = "";
   const pending = new Map();
@@ -131,7 +132,95 @@ test("check_authority_delegation does not accept a delegation another key signed
     const c = JSON.parse(text(await call("check_authority_delegation", { delegation: foreign })));
     assert.equal(c.issued_by_this_server, false);
     assert.equal(c.valid, false);
+    assert.ok(c.failures.some((f) => f.code === "KEY_NOT_FOUND"), JSON.stringify(c.failures));
   });
+});
+
+const T = Date.now();
+function rootFields(issuer, overrides = {}) {
+  return {
+    record_type: "aps:authority-delegation:v1", version: "1.0", parent_delegation_id: null,
+    issuer, subject: "did:example:agent-a", verification_method: `${issuer}#key-1`,
+    issued_at: new Date(T - 2000).toISOString(), nonce: "0123456789abcdef0123456789abcdef",
+    authority: {
+      scope: { profile: "aps-hierarchical-v1", grants: ["commerce:checkout"] },
+      spend: { mode: "unbounded" }, depth: { remaining: 0 },
+      time: { not_before: new Date(T - 2000).toISOString(), not_after: new Date(T + 3_600_000).toISOString() },
+      reputation: { profile: "aps-score-0-100-v1", ceiling: 100 },
+      values: { profile: "aps-values-identifiers-v1", required: [] },
+      reversibility: { profile: "aps-tci-v1", ceiling: "compensable" },
+    },
+    ...overrides,
+  };
+}
+
+test("issue_authority_delegation has no issuer override and always names the server key", async () => {
+  await withServer(serverKeys, async (call) => {
+    const r = await call("issue_authority_delegation", { subject: "s", grants: ["commerce:checkout"], ...SPEND, issuer: "did:web:bank.example" });
+    assert.notEqual(r.isError, true, text(r));
+    const { delegation } = JSON.parse(text(r));
+    assert.equal(delegation.issuer, `aps:ed25519:${serverKeys.publicKey}`);
+    assert.equal(delegation.verification_method, `aps:ed25519:${serverKeys.publicKey}#key-1`);
+  });
+});
+
+test("check_authority_delegation rejects a record the server key signed under another issuer name", async () => {
+  const forged = issueAuthorityDelegation(rootFields("did:web:bank.example"), serverKeys.privateKey);
+  await withServer(serverKeys, async (call) => {
+    const c = JSON.parse(text(await call("check_authority_delegation", { delegation: forged })));
+    assert.equal(c.issued_by_this_server, false);
+    assert.equal(c.valid, false);
+    assert.ok(c.failures.some((f) => f.code === "KEY_NOT_FOUND"), JSON.stringify(c.failures));
+  });
+});
+
+test("check_authority_delegation reports EXPIRED and ID_MISMATCH with exact codes", async () => {
+  const issuer = `aps:ed25519:${serverKeys.publicKey}`;
+  const expired = issueAuthorityDelegation(rootFields(issuer, {
+    issued_at: new Date(T - 7_200_000).toISOString(),
+    authority: { ...rootFields(issuer).authority, time: { not_before: new Date(T - 7_200_000).toISOString(), not_after: new Date(T - 3_600_000).toISOString() } },
+  }), serverKeys.privateKey);
+  const good = issueAuthorityDelegation(rootFields(issuer, { nonce: "fedcba9876543210fedcba9876543210" }), serverKeys.privateKey);
+  const tampered = { ...good, authority: { ...good.authority, scope: { ...good.authority.scope, grants: ["commerce:*"] } } };
+  await withServer(serverKeys, async (call) => {
+    const e = JSON.parse(text(await call("check_authority_delegation", { delegation: expired })));
+    assert.equal(e.valid, false);
+    assert.ok(e.failures.some((f) => f.code === "EXPIRED"), JSON.stringify(e.failures));
+    const m = JSON.parse(text(await call("check_authority_delegation", { delegation: tampered })));
+    assert.equal(m.valid, false);
+    assert.ok(m.failures.some((f) => f.code === "ID_MISMATCH"), JSON.stringify(m.failures));
+  });
+});
+
+test("after a restart a revoked record is never reported valid", async () => {
+  let delegation;
+  await withServer(serverKeys, async (call) => {
+    delegation = JSON.parse(text(await call("issue_authority_delegation", { subject: "s", grants: ["commerce:checkout"], ...SPEND }))).delegation;
+    const rv = await call("revoke_delegation", { delegation, reason_code: "withdrawn" });
+    assert.notEqual(rv.isError, true, text(rv));
+  });
+  await withServer(serverKeys, async (call) => {
+    const c = JSON.parse(text(await call("check_authority_delegation", { delegation })));
+    assert.equal(c.valid, false);
+    assert.ok(c.failures.some((f) => f.code === "REVOCATION_UNKNOWN"), JSON.stringify(c.failures));
+  });
+});
+
+test("issue_authority_delegation refuses mismatched identify keys, spend plus unbounded, unsafe integers, and remote transports", async () => {
+  const other = generateKeyPair();
+  await withServer(serverKeys, async (call) => {
+    const both = await call("issue_authority_delegation", { subject: "s", grants: ["commerce:checkout"], ...SPEND, spend_unbounded: true });
+    assert.equal(both.isError, true); assert.match(text(both), /spend_unbounded is set together/);
+    const big = await call("issue_authority_delegation", { subject: "s", grants: ["commerce:checkout"], spend_unit: "u", spend_per_action: 1, spend_cumulative: 2 ** 53 + 2 });
+    assert.equal(big.isError, true, text(big));
+    await call("identify", { public_key: serverKeys.publicKey, private_key: other.privateKey, agent_id: "mismatch" });
+    const mm = await call("issue_authority_delegation", { subject: "s", grants: ["commerce:checkout"], ...SPEND });
+    assert.equal(mm.isError, true); assert.match(text(mm), /do not belong together/);
+  });
+  await withServer(serverKeys, async (call) => {
+    const r = await call("issue_authority_delegation", { subject: "s", grants: ["commerce:checkout"], ...SPEND });
+    assert.equal(r.isError, true); assert.match(text(r), /only on a local \(stdio\) server/);
+  }, { MCP_REMOTE: "1" });
 });
 
 test("the legacy refusal points to issue_authority_delegation", async () => {

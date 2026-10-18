@@ -2232,29 +2232,39 @@ const LEGACY_DELEGATION_REFUSAL =
   '(record_type aps:authority-delegation:v1, delegation_id sha256:...). Pass the AuthorityDelegationV1 ' +
   'record as `delegation`. To issue a delegation this server can revoke, use issue_authority_delegation.';
 
-server.registerTool("issue_authority_delegation", { description: "[OPERATOR] Issue a signed root AuthorityDelegationV1 (record_type aps:authority-delegation:v1, draft-03 section 3.1) from this server's key to a subject. This is the record revoke_delegation can revoke and check_authority_delegation can verify. Legacy create_delegation records cannot be revoked under SDK 8. Scope grants use the aps-hierarchical-v1 profile (for example commerce:checkout or commerce:*). Spend is bounded by default: give spend_unit, spend_per_action and spend_cumulative, or set spend_unbounded true. The record is tracked in this process's in-memory revocation store, which is lost on restart. Returns the signed record as JSON for the caller to keep and present.", inputSchema: z.object({
+const serverIssuer = () => `aps:ed25519:${state.agentKey}`;
+
+server.registerTool("issue_authority_delegation", { description: "[OPERATOR] Issue a signed root AuthorityDelegationV1 (record_type aps:authority-delegation:v1, draft-03 section 3.1) from this server's key to a subject. This is the record revoke_delegation can revoke and check_authority_delegation can verify. Legacy create_delegation records cannot be revoked under SDK 8. Scope grants use the aps-hierarchical-v1 profile (for example commerce:checkout or commerce:*). Spend is bounded by default: give spend_unit, spend_per_action and spend_cumulative, or set spend_unbounded true. The record is tracked in this process's in-memory revocation store, which is lost on restart. Returns the signed record as JSON for the caller to keep and present. The issuer is always aps:ed25519:<this server's public key>. Holding the server key is the only authorization checked, so the tool is refused on a remote server (MCP_TRANSPORT=sse or MCP_REMOTE=1).", inputSchema: z.object({
         subject: z.string().min(1).describe("Identifier of the agent receiving authority, for example a DID or an agent id."),
         grants: z.array(z.string().min(1)).min(1).describe("Scope grants, aps-hierarchical-v1 profile, for example ['commerce:checkout']."),
         spend_unit: z.string().optional().describe("Exact-match accounting unit, for example iso4217:USD:minor."),
         spend_per_action: z.number().int().nonnegative().optional().describe("Largest single action, as an integer in spend_unit."),
         spend_cumulative: z.number().int().nonnegative().optional().describe("Most the whole delegation subtree may spend, as an integer in spend_unit."),
-        spend_unbounded: z.boolean().default(false).describe("Set true to issue with no spend limit. Ignored when spend fields are given."),
+        spend_unbounded: z.boolean().default(false).describe("Set true to issue with no spend limit. Refused together with spend fields."),
         depth_remaining: z.number().int().min(0).max(16).default(0).describe("How many further delegation hops the subject may create."),
         ttl_hours: z.number().positive().max(8760).default(1).describe("Validity length from now, in hours."),
         reputation_ceiling: z.number().int().min(0).max(100).default(100).describe("Reputation ceiling, aps-score-0-100-v1 profile."),
         values_required: z.array(z.string()).default([]).describe("Values floor identifiers the subject must hold, for example F-001."),
         reversibility_ceiling: z.enum(["tentative", "compensable", "irreversible"]).default("compensable").describe("Most irreversible action class the delegation permits."),
-        issuer: z.string().min(1).optional().describe("Issuer identifier. Defaults to aps:ed25519:<this server's public key>. The verification method is <issuer>#key-1."),
       }) }, async (args) => {
         recordBehavior('issue_authority_delegation');
+        // Holding the key is the only authorization this server checks. On a hosted server any
+        // connected client would be minting root authority under the host's key, so issuance is
+        // limited to a local (stdio) server until a remote authorization model exists.
+        if (process.env.MCP_TRANSPORT === 'sse' || process.env.MCP_REMOTE === '1') {
+          return { content: [{ type: "text" as const, text: "Refused: issue_authority_delegation runs only on a local (stdio) server. On a remote server it would sign root authority with the host's key for any connected client." }], isError: true };
+        }
         const keyErr = requireKey();
         if (keyErr) return { content: [{ type: "text" as const, text: keyErr }], isError: true };
         const fail = (text: string) => ({ content: [{ type: "text" as const, text }], isError: true });
         const spendGiven = [args.spend_unit, args.spend_per_action, args.spend_cumulative].filter((v) => v !== undefined).length;
         if (spendGiven !== 0 && spendGiven !== 3) return fail("Refused: give all three of spend_unit, spend_per_action and spend_cumulative, or none of them.");
+        if (spendGiven === 3 && args.spend_unbounded) return fail("Refused: spend_unbounded is set together with spend fields. Give one or the other.");
         if (spendGiven === 0 && !args.spend_unbounded) return fail("Refused: no spend limit given. Give spend_unit, spend_per_action and spend_cumulative, or set spend_unbounded true to issue without a limit.");
         if (spendGiven === 3 && args.spend_per_action! > args.spend_cumulative!) return fail("Refused: spend_per_action is larger than spend_cumulative.");
-        const issuer = args.issuer ?? `aps:ed25519:${state.agentKey}`;
+        // The issuer is always this server's own key identifier, so a record cannot claim a
+        // name (a DID, another organisation) whose key material this server does not hold.
+        const issuer = serverIssuer();
         const now = Date.now();
         const iso = (t: number) => new Date(t).toISOString();
         let delegation: AuthorityDelegationV1;
@@ -2283,11 +2293,16 @@ server.registerTool("issue_authority_delegation", { description: "[OPERATOR] Iss
         } catch (err) {
           return fail(safeError('Issuance refused', err));
         }
+        // identify accepts any key pair. A pair that does not match would sign a record that
+        // does not verify under the key it names, so it is refused rather than returned.
+        let selfCheck = false;
+        try { selfCheck = verifyAuthorityDelegationSignature(delegation, state.agentKey!); } catch { selfCheck = false; }
+        if (!selfCheck) return fail("Refused: the issued record does not verify under this server's public key. The public and private key given to identify (or AGENT_KEY and AGENT_PRIVATE_KEY) do not belong together.");
         authorityRevocationStore.track(delegation.delegation_id);
         return { content: [{ type: "text" as const, text: JSON.stringify({ delegation, note: "Revocable with revoke_delegation while this server process runs. Keep this record: the server stores only its revocation status, in memory." }, null, 2) }] };
       });
 
-server.registerTool("check_authority_delegation", { description: "Verify a root AuthorityDelegationV1 issued by this server's key, with the SDK chain verifier: shape, delegation_id, signature, time window and revocation status from this process's in-memory revocation store. Returns the verifier's state (valid, invalid, indeterminate or unsupported) and its failure codes, for example REVOKED or EXPIRED. A delegation this server did not issue resolves no key and is not valid here. A delegation issued before a restart has revocation status unknown, because the store is in memory.", inputSchema: z.object({
+server.registerTool("check_authority_delegation", { description: "Verify a root AuthorityDelegationV1 issued by this server's key, with the SDK chain verifier: shape, delegation_id, signature, time window and revocation status from this process's in-memory revocation store. Returns the verifier's state (valid, invalid, indeterminate or unsupported) and its failure codes, for example REVOKED or EXPIRED. A delegation this server did not issue, including one signed by this key under another issuer name, resolves no key and is not valid here. A delegation issued before a restart has revocation status unknown, because the store is in memory.", inputSchema: z.object({
         delegation: z.union([z.string(), z.record(z.string(), z.unknown())]).describe("The AuthorityDelegationV1 to check, as a JSON string or object."),
       }) }, async (args) => {
         recordBehavior('check_authority_delegation');
@@ -2299,8 +2314,10 @@ server.registerTool("check_authority_delegation", { description: "Verify a root 
         } catch (err) {
           return { content: [{ type: "text" as const, text: safeError('Refused: delegation is not a parseable AuthorityDelegationV1', err) }], isError: true };
         }
+        // Issued by this server means both: the record names this server's own issuer
+        // identifier, and its signature verifies under this server's key.
         let ours = false;
-        try { ours = verifyAuthorityDelegationSignature(target, state.agentKey!); } catch { ours = false; }
+        try { ours = (target as any)?.issuer === serverIssuer() && verifyAuthorityDelegationSignature(target, state.agentKey!); } catch { ours = false; }
         const resolveVerificationKey = (issuer: string, method: string) =>
           ours && issuer === target.issuer && method === target.verification_method ? state.agentKey! : { outcome: 'not_found' as const };
         const result = verifyAuthorityDelegation(target, {

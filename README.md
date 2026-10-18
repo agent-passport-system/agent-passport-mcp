@@ -14,7 +14,7 @@ npx agent-passport-system-mcp
 
 agent-passport-system-mcp 8.0.0 and 7.0.0 target SDK 8.x. The 6.x line targets SDK 6.x, and 5.0.2 targets SDK 5.x.
 
-The default profile is `full`, all 154 tools. Set `APS_PROFILE=essential` for a 28-tool slim profile covering the primitives most integrations need (identity, delegation, enforcement, commerce, reputation).
+The default profile is `full`, all 154 tools. Set `APS_PROFILE=essential` for a 28-tool slim profile covering the primitives most integrations need (identity, delegation, enforcement, commerce, reputation). The count is what `tools/list` returns and includes `list_profiles`, which every profile exposes.
 
 Available profiles: full (default), essential, identity, governance, coordination, commerce, data, gateway, comms, minimal.
 
