@@ -108,6 +108,8 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotationEntry> = {
   create_delegation: rw("Create Delegation", ADD),
   verify_delegation: ro("Verify Delegation"),
   revoke_delegation: rw("Revoke Delegation", { destructive: true, idempotent: true, openWorld: false }),
+  issue_authority_delegation: rw("Issue Authority Delegation", ADD),
+  check_authority_delegation: ro("Check Authority Delegation"),
   sub_delegate: rw("Sub-Delegate Authority", ADD),
 
   // ── Agora ──
