@@ -143,3 +143,17 @@ test("the legacy refusal points to issue_authority_delegation", async () => {
     assert.match(text(r), /use issue_authority_delegation/);
   });
 });
+
+test("list_tools_for_scope lists both tools under delegation and under the wildcard", async () => {
+  await withServer(serverKeys, async (call) => {
+    for (const scopes of [["delegation"], ["*"]]) {
+      const r = await call("list_tools_for_scope", { scopes });
+      assert.notEqual(r.isError, true, text(r));
+      for (const name of ["issue_authority_delegation", "check_authority_delegation", "revoke_delegation"]) {
+        assert.match(text(r), new RegExp(`\\b${name}\\b`), `${name} missing for ${JSON.stringify(scopes)}`);
+      }
+    }
+    const other = await call("list_tools_for_scope", { scopes: ["commerce"] });
+    assert.doesNotMatch(text(other), /\bissue_authority_delegation\b/);
+  });
+});

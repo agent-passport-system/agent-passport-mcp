@@ -884,6 +884,8 @@ export const TOOL_SCOPE_MAP: Record<string, string> = {
   'create_delegation': 'delegation',
   'verify_delegation': 'delegation',
   'revoke_delegation': 'delegation',
+  'issue_authority_delegation': 'delegation',
+  'check_authority_delegation': 'delegation',
   'sub_delegate': 'delegation',
   'create_v2_delegation': 'delegation',
   'supersede_v2_delegation': 'delegation',

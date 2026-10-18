@@ -104,14 +104,16 @@ Every tool carries MCP annotations. **Read-only** means the tool writes no file,
 | `verify_issuer` | Verify Passport Issuer Signature | yes |  |  | Verify that a passport was officially issued by AEOESS. |
 | `verify_rotation_chain` | Verify Key Rotation Chain | yes |  |  | Verify all rotation signatures in a DID document's rotation log. |
 
-### Delegation and escalation: 8 tools
+### Delegation and escalation: 10 tools
 
 | Tool | Title | Read-only | Destructive | Network | Description |
 |------|-------|-----------|-------------|---------|-------------|
 | `aps_check_escalation_required` | Check Escalation Required | yes |  |  | Escalation boundary: check whether an action on a v2 delegation requires owner confirmation before execution. |
 | `aps_record_owner_confirmation` | Record Owner Confirmation | yes |  |  | Escalation boundary: owner signs an OwnerConfirmation authorizing a flagged action. |
+| `check_authority_delegation` | Check Authority Delegation | yes |  |  | Verify a root AuthorityDelegationV1 issued by this server's key, with the SDK chain verifier: shape, delegation_id, signature, time window and revocation status from this proces... |
 | `create_delegation` | Create Delegation |  |  |  | [OPERATOR] Create a scoped delegation from one agent to another. |
 | `create_v2_delegation` | Create v2 Delegation |  |  |  | Create a v2 delegation with versioning, mandatory sunset, and PolicyContext binding. |
+| `issue_authority_delegation` | Issue Authority Delegation |  |  |  | [OPERATOR] Issue a signed root AuthorityDelegationV1 (record_type aps:authority-delegation:v1, draft-03 section 3.1) from this server's key to a subject. |
 | `revoke_delegation` | Revoke Delegation |  | yes |  | [OPERATOR] Issue a signed revocation record (AuthorityRevocationV1, draft-03 section 3.5.1 direct revocation) for an AuthorityDelegationV1. |
 | `sub_delegate` | Sub-Delegate Authority |  |  |  | Sub-delegate authority to another agent (must be within your delegation scope and depth). |
 | `supersede_v2_delegation` | Supersede v2 Delegation |  | yes |  | Supersede a v2 delegation. |
@@ -313,13 +315,6 @@ Every tool carries MCP annotations. **Read-only** means the tool writes no file,
 | `mutualAuthDeriveSession` | Derive Mutual-Auth Session | yes |  |  | Derive the shared mutual-auth session record from both sides' Attests. |
 | `mutualAuthVerifyAttest` | Verify Mutual-Auth Attest | yes |  |  | Verify a MutualAuthAttest against policy and trust anchors. |
 | `mutualAuthVerifyTrustBundle` | Verify Trust Anchor Bundle | yes |  |  | Verify a TrustAnchorBundle signature and freshness. |
-
-### Other: 2 tools
-
-| Tool | Title | Read-only | Destructive | Network | Description |
-|------|-------|-----------|-------------|---------|-------------|
-| `check_authority_delegation` | Check Authority Delegation | yes |  |  | Verify a root AuthorityDelegationV1 issued by this server's key, with the SDK chain verifier: shape, delegation_id, signature, time window and revocation status from this proces... |
-| `issue_authority_delegation` | Issue Authority Delegation |  |  |  | [OPERATOR] Issue a signed root AuthorityDelegationV1 (record_type aps:authority-delegation:v1, draft-03 section 3.1) from this server's key to a subject. |
 
 <!-- tools:end -->
 
