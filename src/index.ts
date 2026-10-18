@@ -2246,7 +2246,7 @@ server.registerTool("issue_authority_delegation", { description: "[OPERATOR] Iss
         reputation_ceiling: z.number().int().min(0).max(100).default(100).describe("Reputation ceiling, aps-score-0-100-v1 profile."),
         values_required: z.array(z.string()).default([]).describe("Values floor identifiers the subject must hold, for example F-001."),
         reversibility_ceiling: z.enum(["tentative", "compensable", "irreversible"]).default("compensable").describe("Most irreversible action class the delegation permits."),
-      }) }, async (args) => {
+      }).strict() }, async (args) => {
         recordBehavior('issue_authority_delegation');
         // Holding the key is the only authorization this server checks. On a hosted server any
         // connected client would be minting root authority under the host's key, so issuance is
@@ -2317,7 +2317,7 @@ server.registerTool("check_authority_delegation", { description: "Verify a root 
         // Issued by this server means both: the record names this server's own issuer
         // identifier, and its signature verifies under this server's key.
         let ours = false;
-        try { ours = (target as any)?.issuer === serverIssuer() && verifyAuthorityDelegationSignature(target, state.agentKey!); } catch { ours = false; }
+        try { ours = (target as any)?.issuer === serverIssuer() && (target as any)?.verification_method === `${serverIssuer()}#key-1` && verifyAuthorityDelegationSignature(target, state.agentKey!); } catch { ours = false; }
         const resolveVerificationKey = (issuer: string, method: string) =>
           ours && issuer === target.issuer && method === target.verification_method ? state.agentKey! : { outcome: 'not_found' as const };
         const result = verifyAuthorityDelegation(target, {

@@ -156,7 +156,9 @@ function rootFields(issuer, overrides = {}) {
 
 test("issue_authority_delegation has no issuer override and always names the server key", async () => {
   await withServer(serverKeys, async (call) => {
-    const r = await call("issue_authority_delegation", { subject: "s", grants: ["commerce:checkout"], ...SPEND, issuer: "did:web:bank.example" });
+    const withIssuer = await call("issue_authority_delegation", { subject: "s", grants: ["commerce:checkout"], ...SPEND, issuer: "did:web:bank.example" });
+    assert.equal(withIssuer.isError, true, text(withIssuer));
+    const r = await call("issue_authority_delegation", { subject: "s", grants: ["commerce:checkout"], ...SPEND });
     assert.notEqual(r.isError, true, text(r));
     const { delegation } = JSON.parse(text(r));
     assert.equal(delegation.issuer, `aps:ed25519:${serverKeys.publicKey}`);
@@ -221,6 +223,20 @@ test("issue_authority_delegation refuses mismatched identify keys, spend plus un
     const r = await call("issue_authority_delegation", { subject: "s", grants: ["commerce:checkout"], ...SPEND });
     assert.equal(r.isError, true); assert.match(text(r), /only on a local \(stdio\) server/);
   }, { MCP_REMOTE: "1" });
+  await withServer(serverKeys, async (call) => {
+    const r = await call("issue_authority_delegation", { subject: "s", grants: ["commerce:checkout"], ...SPEND });
+    assert.equal(r.isError, true); assert.match(text(r), /only on a local \(stdio\) server/);
+  }, { MCP_TRANSPORT: "sse" });
+});
+
+test("check_authority_delegation requires the server's own verification method", async () => {
+  const issuer = `aps:ed25519:${serverKeys.publicKey}`;
+  const odd = issueAuthorityDelegation(rootFields(issuer, { verification_method: "did:web:bank.example#k", nonce: "aaaabbbbccccddddeeeeffff00001111" }), serverKeys.privateKey);
+  await withServer(serverKeys, async (call) => {
+    const c = JSON.parse(text(await call("check_authority_delegation", { delegation: odd })));
+    assert.equal(c.issued_by_this_server, false);
+    assert.equal(c.valid, false);
+  });
 });
 
 test("the legacy refusal points to issue_authority_delegation", async () => {
