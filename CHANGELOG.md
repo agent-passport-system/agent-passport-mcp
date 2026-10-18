@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`issue_authority_delegation`** issues a signed root AuthorityDelegationV1 (`aps:authority-delegation:v1`) from this server's key. Until now no tool minted the record `revoke_delegation` accepts, so a delegation made through this server could not be revoked before it expired. Spend is bounded unless `spend_unbounded` is set, and a partial or inverted limit is refused. The record is tracked in the in-memory revocation store, which is lost on restart.
+- **`check_authority_delegation`** verifies a root AuthorityDelegationV1 this server issued with the SDK chain verifier: shape, id, signature, time window and revocation status from the in-memory store. It returns the verifier's state and failure codes, for example `REVOKED`.
+- The legacy refusal in `revoke_delegation` now points to `issue_authority_delegation`. Both tools are in the `identity` and `essential` profiles.
+- `issue_authority_delegation` always names `aps:ed25519:<server public key>` as issuer, refuses when the identified key pair does not match, refuses spend fields together with `spend_unbounded`, and is refused on a remote server (`MCP_TRANSPORT=sse` or `MCP_REMOTE=1`), because holding the key is the only authorization this server checks. `check_authority_delegation` treats a record as issued by this server only when it names that issuer and its signature verifies under the server key.
+
 ## 8.0.0 (2026-10-17)
 
 Several tools gave answers that the SDK 8 code behind them could not back. This release makes each of them either do the real check or refuse.

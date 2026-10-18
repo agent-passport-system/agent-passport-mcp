@@ -1,6 +1,6 @@
 {
   "generated_by": "scripts/generate-manifest.mjs from src/index.ts REGISTERED_TOOL_NAMES. Generated file, do not hand-edit.",
-  "count": 152,
+  "count": 154,
   "tools": [
     "accept_assignment",
     "activate_emergency",
@@ -37,6 +37,7 @@
     "attest_to_floor",
     "broadcast",
     "check_aggregate_constraints",
+    "check_authority_delegation",
     "check_combination_permitted",
     "check_jurisdiction_transfer",
     "check_messages",
@@ -104,6 +105,7 @@
     "identify",
     "is_evidence_fresh",
     "is_key_active",
+    "issue_authority_delegation",
     "issue_passport",
     "list_agents",
     "list_issuance_records",
