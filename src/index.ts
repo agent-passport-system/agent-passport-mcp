@@ -1056,13 +1056,16 @@ export const TOOL_SCOPE_MAP: Record<string, string> = {
 // ═══════════════════════════════════════
 
 server.registerTool("list_profiles", { description: "Show available tool profiles. Set APS_PROFILE env var to limit exposed tools (e.g. APS_PROFILE=data).", inputSchema: z.object({}) }, async () => {
+        // list_profiles is exposed under every profile (see the filter above), so a
+        // profile that does not name it still presents it.
+        const exposed = (tools: Set<string>) => tools.size + (tools.has('list_profiles') ? 0 : 1);
         const lines = Object.entries(TOOL_PROFILES).map(([name, tools]) =>
-          `• ${name} (${tools.size} tools): ${Array.from(tools).slice(0, 6).join(', ')}${tools.size > 6 ? '...' : ''}`
+          `• ${name} (${exposed(tools)} tools): ${Array.from(tools).slice(0, 6).join(', ')}${tools.size > 6 ? '...' : ''}`
         );
-        const essentialSize = TOOL_PROFILES.essential.size;
+        const essentialSize = exposed(TOOL_PROFILES.essential);
         // Generated count, never a literal. See src/toolManifest.ts.
         const total = toolCount(REGISTERED_TOOL_NAMES.length);
-        return { content: [{ type: "text", text: `📋 Tool Profiles (set APS_PROFILE env var):\n\nActive: ${activeProfile} (${activeProfile === 'full' ? total : profileFilter?.size || total} tools)\n\nRecommended: essential (${essentialSize} tools) - identity, delegation, enforcement, commerce, reputation.\n\n${lines.join('\n')}\n\n• full (${total} tools): All tools exposed (default)` }] };
+        return { content: [{ type: "text", text: `📋 Tool Profiles (set APS_PROFILE env var):\n\nActive: ${activeProfile} (${activeProfile === 'full' || !profileFilter ? total : exposed(profileFilter)} tools)\n\nRecommended: essential (${essentialSize} tools) - identity, delegation, enforcement, commerce, reputation.\n\n${lines.join('\n')}\n\n• full (${total} tools): All tools exposed (default)` }] };
       });
 
 // ═══════════════════════════════════════
