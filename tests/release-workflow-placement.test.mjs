@@ -564,7 +564,6 @@ test('the reader finds the jobs and steps the real workflows declare', () => {
 
   assert.deepEqual(Object.keys(byPath).sort(), [
     'check-drift.yml',
-    'contributor-check.yml',
     'mcp-registry-publish.yml',
     'release.yml',
   ])
