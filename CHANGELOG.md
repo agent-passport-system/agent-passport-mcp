@@ -1,5 +1,15 @@
 # Changelog
 
+## 8.1.1 (2026-11-04)
+
+Dependency security update, plus one display fix merged after 8.1.0. No tool inputs change.
+
+### Fixed
+
+- `list_profiles` now counts `list_profiles` itself in each profile it is exposed under, so the tool counts it reports match the tools a client actually sees.
+- `@modelcontextprotocol/server` goes from 2.0.0 to 2.3.1, which clears GHSA-f897-62hf-6gxq, GHSA-46jr-4wx8-v453, GHSA-jm63-cq47-j5jp and GHSA-rvq5-wwqv-78pq. The dependency stays pinned to an exact version.
+- zod goes to ^4.6.6, which clears GHSA-mrhx-c7xc-m3w5.
+
 ## 8.1.0 (2026-10-18)
 
 Adds two tools for issuing and checking revocable authority delegations. Nothing is removed and no existing tool changes its inputs.
